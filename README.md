@@ -124,7 +124,7 @@ npm run dev
 Backend will run on:
 
 ```bash
-http://localhost:5000
+https://healfocus-api.onrender.com
 ```
 
 > Replace the port if your backend uses a different one.
@@ -204,7 +204,7 @@ You can test the backend APIs using:
 Example base URL:
 
 ```bash
-http://localhost:5000/api
+https://healfocus-api.onrender.com/api
 ```
 
 ---

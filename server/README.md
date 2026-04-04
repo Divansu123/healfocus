@@ -95,7 +95,7 @@ npm run db:generate
 ```bash
 npm run dev
 ```
-Server runs at `http://localhost:5000`
+Server runs at `https://healfocus-api.onrender.com`
 
 ---
 
@@ -232,7 +232,7 @@ Server runs at `http://localhost:5000`
 Replace the stub functions in `src/lib/api.js` with real `fetch` calls:
 
 ```js
-const BASE = 'http://localhost:5000/api'
+const BASE = 'https://healfocus-api.onrender.com/api'
 
 const getToken = () => localStorage.getItem('hf_token')
 
