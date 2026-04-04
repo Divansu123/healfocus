@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #eef0f8;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  #root { min-height: 100vh; display: flex; flex-direction: column; }
+}
+
+@layer components {
+  /* App shell — mobile first, centered card on desktop (used by login) */
+  .app-shell {
+    @apply max-w-[430px] mx-auto min-h-screen bg-[#f8faff] flex flex-col relative;
+  }
+
+  /* Patient page — full width on desktop, card on mobile */
+  .patient-page {
+    @apply flex flex-col flex-1 bg-[#f8faff] lg:bg-transparent lg:rounded-2xl;
+  }
+
+  /* Scrollbar hide */
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Bottom nav safe area */
+  .bottom-nav-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 4px);
+  }
+}
+
+/* Slide up animation for modals */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.modal-slide-up { animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.2s ease; }
+
+/* Pulse badge */
+@keyframes pulseBadge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.pulse-badge { animation: pulseBadge 1.2s ease-in-out infinite; }
+
+/* Sidebar */
+@keyframes sidebarIn {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.sidebar-enter { animation: sidebarIn 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* Border-3 utility */
+.border-3 { border-width: 3px; }
