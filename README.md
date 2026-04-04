@@ -106,7 +106,7 @@ npm run dev
 Frontend will run on:
 
 ```bash
-http://localhost:5173
+https://healfocus-client.onrender.com/
 ```
 
 ---
@@ -141,7 +141,7 @@ Create a `.env` file inside the `server/` folder.
 PORT=5000
 DATABASE_URL="mysql://root:password@localhost:3306/healfocus"
 JWT_SECRET=your_jwt_secret
-CLIENT_URL=http://localhost:5173
+CLIENT_URL=https://healfocus-client.onrender.com/
 ```
 
 > Update the values according to your local system.

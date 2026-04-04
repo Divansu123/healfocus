@@ -71,7 +71,7 @@ Edit `.env` and fill in your values:
 DATABASE_URL="mysql://USER:PASSWORD@localhost:3306/healfocus"
 JWT_SECRET=<generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))">
 JWT_REFRESH_SECRET=<generate another>
-ALLOWED_ORIGINS=http://localhost:5173
+ALLOWED_ORIGINS=https://healfocus-client.onrender.com/
 ```
 
 ### 3. Create the database
