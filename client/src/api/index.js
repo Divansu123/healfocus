@@ -1,8 +1,13 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
 
+// ─── API Base URL ─────────────────────────────────────────────────────────────
+// Local:  set VITE_API_URL=http://localhost:5000/api  in client/.env
+// Render: set VITE_API_URL=https://healfocus-api.onrender.com/api  in Render Dashboard
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
 const api = axios.create({
-  baseURL: 'https://healfocus-api.onrender.com/api',
+  baseURL: BASE_URL,
   withCredentials: true,
 })
 
@@ -24,7 +29,7 @@ api.interceptors.response.use(
       originalRequest._retry = true
       try {
         const refreshRes = await axios.post(
-          'https://healfocus-api.onrender.com/api/auth/refresh',
+          `${BASE_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         )
