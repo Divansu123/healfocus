@@ -29,10 +29,16 @@ export default function LoginPage() {
       const res = await authApi.login({
         email: form.email,
         password: form.password,
+        role,
       })
 
       const user = res.data?.data?.user
       const token = res.data?.data?.accessToken
+
+      if (!user || !token) {
+        toast.error('Wrong email or password')
+        return
+      }
 
       setAuth(user, token)
 
@@ -46,7 +52,14 @@ export default function LoginPage() {
 
       toast.success(`Welcome back, ${user.name.split(' ')[0]}! 👋`)
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed')
+      console.log('LOGIN ERROR =>', err)
+
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.errors?.[0]?.msg ||
+        'Wrong email or password'
+
+      toast.error(message)
     } finally {
       setLoading(false)
     }

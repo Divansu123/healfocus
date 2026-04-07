@@ -42,14 +42,19 @@ const register = async (req, res, next) => {
 // ─── Login (all roles) ────────────────────────────────────────────────────────
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     const user = await prisma.user.findUnique({
       where: { email },
       include: { patient: true, hospital: true },
     });
- 
+
     if (!user) return error(res, "Wrong Email", 401);
+
+    // Role mismatch check
+    if (user.role !== role) {
+      return error(res, "Wrong email or password", 401);
+    }
 
     if (password !== user.password) {
       return error(res, "Wrong Password", 401);
