@@ -1,8 +1,30 @@
 import { useState, useEffect } from 'react'
 import { Tabs, Badge, PageTitle, EmptyState } from '@/components/ui'
 import { fmtDate } from '@/lib/utils'
+import { Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { adminApi } from '@/api'
+
+function exportOnboardingExcel(requests, tab) {
+  const headers = ['#', 'Hospital Name', 'City', 'Type', 'Email', 'Phone', 'Beds', 'Contact', 'Status', 'Submitted']
+  const rows = requests.map((r, i) => [
+    i + 1, r.name || '', r.city || '', r.type || '',
+    r.email || '', r.phone || '', r.beds || '',
+    r.contact || '', r.status || '', fmtDate(r.createdAt) || '',
+  ])
+  const bom = '\uFEFF'
+  const csv = bom + [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `healfocus_onboarding_${tab}_${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('Downloaded!')
+}
 
 export default function AdminOnboarding() {
   const [requests, setRequests] = useState([])
@@ -40,7 +62,16 @@ export default function AdminOnboarding() {
 
   return (
     <div>
-      <PageTitle icon="✅">Hospital Onboarding</PageTitle>
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <PageTitle icon="✅">Hospital Onboarding</PageTitle>
+        <button
+          onClick={() => exportOnboardingExcel(filtered, tab)}
+          disabled={!filtered.length}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold rounded-full transition-all"
+        >
+          <Download size={12} /> Export
+        </button>
+      </div>
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
       {loading ? <div className="text-center py-10 text-gray-400">Loading...</div> :
         !filtered.length ? <EmptyState icon="🏥" title={`No ${tab} requests`} /> : (

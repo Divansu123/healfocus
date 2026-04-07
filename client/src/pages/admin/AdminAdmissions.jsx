@@ -1,8 +1,36 @@
 import { useState, useEffect } from 'react'
 import { Badge, PageTitle, EmptyState, Tabs } from '@/components/ui'
 import { fmtDate } from '@/lib/utils'
+import { Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { adminApi } from '@/api'
+
+function exportAdmissionsExcel(admissions, tab) {
+  const headers = ['#', 'Patient', 'Treatment', 'Type', 'Hospital', 'Preferred Date', 'Urgency', 'Status', 'Notes']
+  const rows = admissions.map((a, i) => [
+    i + 1,
+    a.patient?.user?.name || a.patientName || '',
+    a.treatmentName || '',
+    a.type || '',
+    a.hospital?.name || '',
+    fmtDate(a.preferredDate) || '',
+    a.urgency || '',
+    a.status || '',
+    a.notes || '',
+  ])
+  const bom = '\uFEFF'
+  const csv = bom + [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `healfocus_admissions_${tab}_${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('Downloaded!')
+}
 
 export default function AdminAdmissions() {
   const [admissions, setAdmissions] = useState([])
@@ -38,7 +66,16 @@ export default function AdminAdmissions() {
 
   return (
     <div>
-      <PageTitle icon="🏥">Admissions</PageTitle>
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <PageTitle icon="🏥">Admissions</PageTitle>
+        <button
+          onClick={() => exportAdmissionsExcel(filtered, tab)}
+          disabled={!filtered.length}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold rounded-full transition-all"
+        >
+          <Download size={12} /> Export
+        </button>
+      </div>
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
       {loading ? <div className="text-center py-10 text-gray-400">Loading...</div> :
         !filtered.length ? <EmptyState icon="🏥" title={`No ${tab} admissions`} /> : (

@@ -1,9 +1,39 @@
 import { useState, useEffect } from 'react'
 import { Modal, FormGroup, Input, Select, Button, Badge, PageTitle, EmptyState } from '@/components/ui'
 import { fmtDate, fmtMoney } from '@/lib/utils'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { hospitalApi } from '@/api'
+
+function exportBillsExcel(bills) {
+  const headers = ['#', 'Patient', 'Admission', 'Discharge', 'Total Amount', 'Claimable', 'Status', 'Payment Mode']
+  const rows = bills.map((b, i) => {
+    const total = (b.items || []).reduce((s, it) => s + (it.amount || 0), 0)
+    const claimable = (b.items || []).filter(it => it.claimable).reduce((s, it) => s + (it.amount || 0), 0)
+    return [
+      i + 1,
+      b.patientName || '',
+      fmtDate(b.admissionDate) || '',
+      fmtDate(b.dischargeDate) || '',
+      total,
+      claimable,
+      b.status || '',
+      b.paymentMode || '',
+    ]
+  })
+  const bom = '\uFEFF'
+  const csv = bom + [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `indoor_bills_${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('Bills exported!')
+}
 
 const CATEGORIES = ['room','doctor','procedure','pharmacy','diagnostic','nursing','non-medical']
 
@@ -55,12 +85,21 @@ export default function DoctorBills() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <PageTitle icon="💰">Indoor Bills ({bills.length})</PageTitle>
-        <button onClick={() => { setEditing(null); setForm({ patientName:'',patientAge:'',admissionDate:'',dischargeDate:'',paymentMode:'Cashless' }); setItems([]); setModal(true) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary-800 to-violet-700 text-white text-xs font-bold rounded-full">
-          <Plus size={12} /> New Bill
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportBillsExcel(bills)}
+            disabled={!bills.length}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold rounded-full transition-all"
+          >
+            <Download size={12} /> Export
+          </button>
+          <button onClick={() => { setEditing(null); setForm({ patientName:'',patientAge:'',admissionDate:'',dischargeDate:'',paymentMode:'Cashless' }); setItems([]); setModal(true) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary-800 to-violet-700 text-white text-xs font-bold rounded-full">
+            <Plus size={12} /> New Bill
+          </button>
+        </div>
       </div>
       {loading ? <div className="text-center py-10 text-gray-400">Loading...</div> :
         !bills.length ? <EmptyState icon="💰" title="No bills yet" /> : (

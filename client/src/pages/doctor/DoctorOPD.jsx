@@ -1,9 +1,37 @@
 import { useState, useEffect } from 'react'
 import { Tabs, Modal, FormGroup, Input, Select, Textarea, Button, Badge, PageTitle, EmptyState } from '@/components/ui'
 import { today, nowTime } from '@/lib/utils'
-import { Plus, Edit2, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { hospitalApi } from '@/api'
+
+function exportOPDExcel(opdPatients) {
+  const headers = ['Token#', 'Name', 'Age', 'Gender', 'Phone', 'Doctor', 'Complaint', 'Diagnosis', 'Status', 'Date']
+  const rows = opdPatients.map(o => [
+    o.tokenNo || '',
+    o.name || '',
+    o.age || '',
+    o.gender || '',
+    o.phone || '',
+    o.doctor?.name || '',
+    o.complaint || '',
+    o.diagnosis || '',
+    o.status || '',
+    o.visitDate || '',
+  ])
+  const bom = '\uFEFF'
+  const csv = bom + [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `opd_${today()}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('OPD list downloaded!')
+}
 
 export default function DoctorOPD() {
   const [opdPatients, setOpdPatients] = useState([])
@@ -58,12 +86,21 @@ export default function DoctorOPD() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <PageTitle icon="🏃">OPD Management</PageTitle>
-        <button onClick={() => { setEditing(null); setForm({ name:'',age:'',gender:'Male',phone:'',complaint:'',doctorId:'',status:'waiting' }); setModal(true) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary-800 to-violet-700 text-white text-xs font-bold rounded-full">
-          <Plus size={12} /> Add Patient
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportOPDExcel(opdPatients)}
+            disabled={!opdPatients.length}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold rounded-full transition-all"
+          >
+            <Download size={12} /> Export
+          </button>
+          <button onClick={() => { setEditing(null); setForm({ name:'',age:'',gender:'Male',phone:'',complaint:'',doctorId:'',status:'waiting' }); setModal(true) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary-800 to-violet-700 text-white text-xs font-bold rounded-full">
+            <Plus size={12} /> Add Patient
+          </button>
+        </div>
       </div>
       <Tabs tabs={[{id:'today',label:"Today's OPD"},{id:'past',label:'Past'}]} active={tab} onChange={setTab} />
       <div className="relative my-3">

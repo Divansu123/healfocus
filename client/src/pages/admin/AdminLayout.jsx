@@ -1,23 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { Sidebar } from '@/components/ui'
-import { Menu, Bell, LogOut } from 'lucide-react'
-import { authApi } from '@/api'
+import { Menu, LogOut, Bell } from 'lucide-react'
+import { authApi, adminApi } from '@/api'
+import AdminNotifications from './AdminNotifications'
 
 const NAV = [
   { section: 'Overview' },
-  { id: 'overview', icon: '📊', label: 'Dashboard' },
+  { id: 'overview',   icon: '📊', label: 'Dashboard' },
   { section: 'Network' },
-  { id: 'hospitals', icon: '🏥', label: 'Hospitals' },
+  { id: 'hospitals',  icon: '🏥', label: 'Hospitals' },
   { id: 'onboarding', icon: '✅', label: 'Onboarding' },
   { section: 'Patients' },
-  { id: 'patients', icon: '👥', label: 'Patients' },
-  { id: 'admissions', icon: '🏥', label: 'Admissions' },
+  { id: 'patients',   icon: '👥', label: 'Patients' },
+  { id: 'admissions', icon: '🛏️', label: 'Admissions' },
   { section: 'Operations' },
-  { id: 'promos', icon: '🎁', label: 'Promotions' },
-  { id: 'requests', icon: '🔧', label: 'Service Requests' },
-  { id: 'team', icon: '👨‍💼', label: 'Team' },
+  { id: 'promos',     icon: '🎁', label: 'Promotions' },
+  { id: 'requests',   icon: '🔧', label: 'Service Requests' },
+  { id: 'team',       icon: '👨‍💼', label: 'Team' },
+  { section: 'AI Tools' },
+  { id: 'billcheck',  icon: '🔍', label: 'AI Bill Analyzer' },
 ]
 
 export default function AdminLayout() {
@@ -25,6 +28,17 @@ export default function AdminLayout() {
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showNotifs, setShowNotifs] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    adminApi.getNotifications()
+      .then(res => {
+        const data = res.data?.data || []
+        setUnreadCount(data.filter(n => !n.read).length)
+      })
+      .catch(() => {})
+  }, [showNotifs])
 
   const activeTab = location.pathname.split('/admin/')[1] || 'overview'
 
@@ -51,9 +65,19 @@ export default function AdminLayout() {
           <h1 className="text-base font-black flex-1 tracking-tight">
             {NAV.find(n => n.id === activeTab)?.icon} {NAV.find(n => n.id === activeTab)?.label || 'Admin Panel'}
           </h1>
-          <button onClick={handleLogout} className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1.5 rounded-full text-xs font-bold">
-            <LogOut size={12} /> Logout
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowNotifs(true)} className="relative p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all">
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1.5 rounded-full text-xs font-bold">
+              <LogOut size={12} /> Logout
+            </button>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto p-4 lg:p-6">
@@ -61,6 +85,7 @@ export default function AdminLayout() {
           </div>
         </main>
       </div>
+      {showNotifs && <AdminNotifications onClose={() => setShowNotifs(false)} />}
     </div>
   )
 }

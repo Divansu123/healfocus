@@ -216,7 +216,9 @@ const getOpdPatients = async (req, res, next) => {
       include: { doctor: true },
       orderBy: { tokenNo: "asc" },
     });
-    return success(res, data);
+    // Normalize status to frontend format
+    const normalized = data.map(o => ({ ...o, status: o.status === 'in_progress' ? 'in-progress' : o.status }));
+    return success(res, normalized);
   } catch (err) {
     next(err);
   }
@@ -234,7 +236,16 @@ const addOpdPatient = async (req, res, next) => {
       doctorId,
       complaint,
       tokenNo,
+      status,
     } = req.body;
+    if (!name) return error(res, "Patient name required", 400);
+    // Normalize OPD status: frontend sends 'in-progress', Prisma enum uses 'in_progress'
+    const normalizeOpdStatus = (s) => {
+      if (s === 'in-progress') return 'in_progress';
+      if (s === 'in_progress') return 'in_progress';
+      if (s === 'completed') return 'completed';
+      return 'waiting';
+    };
     const opd = await prisma.opdPatient.create({
       data: {
         hospitalId: getHospitalId(req),
@@ -243,13 +254,17 @@ const addOpdPatient = async (req, res, next) => {
         age: age ? parseInt(age) : null,
         gender,
         phone,
-        visitDate,
+        visitDate: visitDate || new Date().toISOString().split("T")[0],
         time,
         complaint,
         tokenNo: tokenNo ? parseInt(tokenNo) : null,
+        status: normalizeOpdStatus(status),
       },
+      include: { doctor: true },
     });
-    return success(res, opd, "OPD patient added", 201);
+    // Return with frontend-friendly status
+    const result = { ...opd, status: opd.status === 'in_progress' ? 'in-progress' : opd.status };
+    return success(res, result, "OPD patient added", 201);
   } catch (err) {
     next(err);
   }
@@ -262,11 +277,21 @@ const updateOpdPatient = async (req, res, next) => {
       where: { id, hospitalId: getHospitalId(req) },
     });
     if (!opd) return error(res, "OPD patient not found", 404);
+    // Normalize status
+    const body = { ...req.body };
+    if (body.status) {
+      body.status = body.status === 'in-progress' ? 'in_progress' : body.status;
+    }
+    // Remove fields that shouldn't be updated directly
+    delete body.id; delete body.hospitalId; delete body.createdAt;
     const updated = await prisma.opdPatient.update({
       where: { id },
-      data: req.body,
+      data: body,
+      include: { doctor: true },
     });
-    return success(res, updated, "OPD patient updated");
+    // Return with frontend-friendly status
+    const result = { ...updated, status: updated.status === 'in_progress' ? 'in-progress' : updated.status };
+    return success(res, result, "OPD patient updated");
   } catch (err) {
     next(err);
   }
@@ -287,27 +312,19 @@ const getPromotions = async (req, res, next) => {
 
 const addPromotion = async (req, res, next) => {
   try {
-    const {
-      title,
-      desc,
-      type,
-      discount,
-      validTill,
-      applicableTo,
-      color,
-      active,
-    } = req.body;
+    const { title, desc, description, type, discount, validTill, applicableTo, color, active } = req.body;
+    if (!title) return error(res, "Title required", 400);
     const promo = await prisma.promotion.create({
       data: {
         hospitalId: getHospitalId(req),
         title,
-        desc,
-        type,
-        discount,
-        validTill,
-        applicableTo,
-        color,
-        active,
+        desc: desc || description || "",
+        type: type || "Discount",
+        discount: discount || "",
+        validTill: validTill || null,
+        applicableTo: applicableTo || "all",
+        color: color || "linear-gradient(135deg,#1a73e8,#60a5fa)",
+        active: active !== undefined ? Boolean(active) : true,
       },
     });
     return success(res, promo, "Promotion created", 201);
@@ -323,9 +340,15 @@ const updatePromotion = async (req, res, next) => {
       where: { id, hospitalId: getHospitalId(req) },
     });
     if (!promo) return error(res, "Promotion not found", 404);
+    const { desc, description, validTill, active, id: _id, hospitalId: _hid, createdAt, updatedAt, ...rest } = req.body;
     const updated = await prisma.promotion.update({
       where: { id },
-      data: req.body,
+      data: {
+        ...rest,
+        desc: desc || description || promo.desc || "",
+        validTill: validTill || null,
+        active: active !== undefined ? Boolean(active) : promo.active,
+      },
     });
     return success(res, updated);
   } catch (err) {
@@ -401,19 +424,24 @@ const createBill = async (req, res, next) => {
     const {
       patientId,
       patientName,
+      patientAge,
       insuranceId,
       admissionDate,
       dischargeDate,
+      paymentMode,
       items,
     } = req.body;
+    if (!patientName) return error(res, "Patient name required", 400);
     const bill = await prisma.indoorBill.create({
       data: {
         hospitalId: getHospitalId(req),
-        patientId: patientId || 'manual',
+        patientId: patientId || "manual",
         patientName,
-        insuranceId,
-        admissionDate,
-        dischargeDate,
+        patientAge: patientAge ? parseInt(patientAge) : null,
+        insuranceId: insuranceId || null,
+        admissionDate: admissionDate || null,
+        dischargeDate: dischargeDate || null,
+        paymentMode: paymentMode || "Cashless",
         billItems: {
           create:
             items?.map((i) => ({
@@ -465,9 +493,36 @@ const getDischargeSummaries = async (req, res, next) => {
 
 const createDischargeSummary = async (req, res, next) => {
   try {
-    const body = req.body;
+    const {
+      patientName, patientAge, patientId, diagnosisCode, primaryDiagnosis,
+      admissionDate, dischargeDate, insuranceProvider, policyNo, policyAge,
+      preExistingCovered, roomType, treatmentSummary, followUpDate,
+      attendingDoctor, proceduresDone, medicinesAtDischarge, status
+    } = req.body;
+    if (!patientName) return error(res, "Patient name required", 400);
+    if (!primaryDiagnosis) return error(res, "Primary diagnosis required", 400);
     const ds = await prisma.dischargeSummary.create({
-      data: { ...body, hospitalId: getHospitalId(req) },
+      data: {
+        hospitalId: getHospitalId(req),
+        patientId: patientId || "manual",
+        patientName,
+        patientAge: patientAge ? parseInt(patientAge) : null,
+        diagnosisCode: diagnosisCode || null,
+        primaryDiagnosis,
+        admissionDate: admissionDate || null,
+        dischargeDate: dischargeDate || null,
+        insuranceProvider: insuranceProvider || null,
+        policyNo: policyNo || null,
+        policyAge: policyAge || null,
+        preExistingCovered: preExistingCovered || null,
+        roomType: roomType || "General Ward",
+        treatmentSummary: treatmentSummary || null,
+        followUpDate: followUpDate || null,
+        attendingDoctor: attendingDoctor || null,
+        proceduresDone: proceduresDone || null,
+        medicinesAtDischarge: medicinesAtDischarge || null,
+        status: status || "draft",
+      },
     });
     return success(res, ds, "Discharge summary created", 201);
   } catch (err) {
@@ -482,9 +537,13 @@ const updateDischargeSummary = async (req, res, next) => {
       where: { id, hospitalId: getHospitalId(req) },
     });
     if (!ds) return error(res, "Summary not found", 404);
+    const { patientAge, patientId, hospitalId: _hid, id: _id, createdAt, updatedAt, ...rest } = req.body;
     const updated = await prisma.dischargeSummary.update({
       where: { id },
-      data: req.body,
+      data: {
+        ...rest,
+        patientAge: patientAge !== undefined ? (patientAge ? parseInt(patientAge) : null) : undefined,
+      },
     });
     return success(res, updated);
   } catch (err) {

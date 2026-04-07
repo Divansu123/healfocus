@@ -6,10 +6,12 @@ import { ChevronRight, Calendar, MapPin, Gift } from 'lucide-react'
 import { patientApi, publicApi } from '@/api'
 
 const QUICK_ACTIONS = [
-  { icon: '🩺', label: 'Book\nAppointment', color: 'from-primary-600 to-violet-600', to: '/patient/book' },
-  { icon: '📋', label: 'My\nRecords',       color: 'from-emerald-500 to-teal-600',   to: '/patient/records' },
-  { icon: '❤️', label: 'Health\nTracker',   color: 'from-rose-500 to-pink-600',      to: '/patient/health' },
-  { icon: '✨', label: 'GenZ\nFeatures',    color: 'from-amber-500 to-orange-500',   to: '/patient/genz' },
+  { icon: '🩺', label: 'Book\nAppt',      color: 'from-primary-600 to-violet-600', to: '/patient/book' },
+  { icon: '📋', label: 'My\nRecords',     color: 'from-emerald-500 to-teal-600',   to: '/patient/records' },
+  { icon: '❤️', label: 'Health\nTracker', color: 'from-rose-500 to-pink-600',      to: '/patient/health' },
+  { icon: '✨', label: 'GenZ\nFeatures',  color: 'from-amber-500 to-orange-500',   to: '/patient/genz' },
+  { icon: '🧘', label: 'Wellness\n& AI',  color: 'from-teal-500 to-cyan-600',      to: '/patient/wellness' },
+  { icon: '🆘', label: 'SOS &\nQR Card',  color: 'from-red-500 to-rose-600',       to: '/patient/wellness' },
 ]
 
 export default function PatientHome() {
@@ -59,7 +61,7 @@ export default function PatientHome() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-2 mb-5">
+      <div className="grid grid-cols-3 gap-2 mb-5">
         {QUICK_ACTIONS.map(a => (
           <button key={a.to} onClick={() => navigate(a.to)}
             className={`bg-gradient-to-br ${a.color} rounded-2xl p-3 text-white text-center shadow-card-md`}>

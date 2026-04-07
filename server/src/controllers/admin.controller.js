@@ -2,6 +2,7 @@ const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
 const { success, error } = require("../utils/response");
 
+// ─── Create Admin Account ─────────────────────────────────────────────────────
 const createAdmin = async (req, res, next) => {
   try {
     const { name, email, password, phone } = req.body;
@@ -24,67 +25,101 @@ const createAdmin = async (req, res, next) => {
   }
 };
 
+// ─── Create Hospital (Admin-initiated, called from /admin/createHospital) ─────
+// Frontend sends: name, city, address, beds, phone, email, type, contact, lat, lng, note
+// Backend creates: hospital record + a hospital staff user account automatically
 const createHospital = async (req, res, next) => {
   try {
     const {
       name,
-      email,
-      password,
-      phone,
-      hospitalName,
       city,
       address,
-      hospitalPhone,
-      hospitalEmail,
       beds,
+      phone,
+      email,
+      type,
+      contact,
+      lat,
+      lng,
+      note,
     } = req.body;
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) return error(res, "Email already registered", 409);
+    // Validate required fields
+    if (!name || !name.trim()) return error(res, "Hospital name is required", 400);
+    if (!city || !city.trim()) return error(res, "City is required", 400);
+    if (!email || !email.trim()) return error(res, "Email is required", 400);
+    if (!phone || !phone.trim()) return error(res, "Phone is required", 400);
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check duplicate hospital email
+    const existingHosp = await prisma.hospital.findFirst({
+      where: { email: cleanEmail },
+    });
+    if (existingHosp) return error(res, "A hospital with this email already exists", 409);
+
+    // Check duplicate user email
+    const existingUser = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+    if (existingUser) return error(res, "A user with this email already exists", 409);
+
+    // Auto-generate staff password: HealFocus@123 (admin can share this)
+    const defaultPassword = "HealFocus@123";
 
     const result = await prisma.$transaction(async (tx) => {
+      // 1. Create hospital record
       const hospital = await tx.hospital.create({
         data: {
-          name: hospitalName,
-          city,
-          address,
-          phone: hospitalPhone,
-          email: hospitalEmail,
+          name: name.trim(),
+          city: city.trim(),
+          address: address?.trim() || "",
+          phone: phone.trim(),
+          email: cleanEmail,
           beds: beds ? parseInt(beds) : null,
+          lat: lat ? parseFloat(lat) : null,
+          lng: lng ? parseFloat(lng) : null,
           status: "active",
         },
       });
 
-      const user = await tx.user.create({
+      // 2. Create staff login account for this hospital
+      const staffUser = await tx.user.create({
         data: {
-          name,
-          email,
-          password,
+          name: contact?.trim() || name.trim(),
+          email: cleanEmail,
+          password: defaultPassword,   // plain text — consistent with login check
           role: "hospital",
-          phone,
+          phone: phone?.trim() || null,
           hospital: { connect: { id: hospital.id } },
         },
       });
 
+      // 3. Link user as hospital admin
       await tx.hospital.update({
         where: { id: hospital.id },
-        data: { adminId: user.id },
+        data: { adminId: staffUser.id },
       });
 
-      return { user, hospital };
+      return { hospital, staffUser };
     });
 
     return success(
       res,
       {
-        user: {
-          id: result.user.id,
-          name: result.user.name,
-          email: result.user.email,
+        hospital: {
+          id: result.hospital.id,
+          name: result.hospital.name,
+          city: result.hospital.city,
+          email: result.hospital.email,
         },
-        hospital: { id: result.hospital.id, name: result.hospital.name },
+        loginCredentials: {
+          email: cleanEmail,
+          password: defaultPassword,
+          note: "Share these credentials with the hospital staff",
+        },
       },
-      "Hospital account created",
+      `Hospital "${name.trim()}" created successfully`,
       201,
     );
   } catch (err) {
@@ -168,33 +203,22 @@ const approveSignupRequest = async (req, res, next) => {
     const { id } = req.params;
     const { adminNotes, adminEmail, adminPassword } = req.body;
 
-    const req2 = await prisma.hospitalSignupRequest.findUnique({
-      where: { id },
-    });
-
+    const req2 = await prisma.hospitalSignupRequest.findUnique({ where: { id } });
     if (!req2) return error(res, "Request not found", 404);
+    if (req2.status !== "pending") return error(res, "Request already processed", 400);
 
-    if (req2.status !== "pending") {
-      return error(res, "Request already processed", 400);
-    }
-
-    const finalEmail = adminEmail || req2.email;
+    const finalEmail = (adminEmail || req2.email).toLowerCase();
     const finalPassword = adminPassword || "HealFocus@123";
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email: finalEmail },
-    });
-
-    if (existingUser) {
-      return error(res, "User with this email already exists", 400);
-    }
+    const existingUser = await prisma.user.findUnique({ where: { email: finalEmail } });
+    if (existingUser) return error(res, "User with this email already exists", 400);
 
     const result = await prisma.$transaction(async (tx) => {
       const hospital = await tx.hospital.create({
         data: {
           name: req2.name,
           city: req2.city,
-          address: req2.address,
+          address: req2.address || "",
           phone: req2.phone,
           email: req2.email,
           beds: req2.beds,
@@ -206,8 +230,9 @@ const approveSignupRequest = async (req, res, next) => {
         data: {
           name: req2.contact || req2.name,
           email: finalEmail,
-          password: finalPassword, // ✅ plain text save
+          password: finalPassword,
           role: "hospital",
+          hospital: { connect: { id: hospital.id } },
         },
       });
 
@@ -218,10 +243,7 @@ const approveSignupRequest = async (req, res, next) => {
 
       await tx.hospitalSignupRequest.update({
         where: { id },
-        data: {
-          status: "approved",
-          adminNotes,
-        },
+        data: { status: "approved", adminNotes },
       });
 
       return { hospital, adminUser };
@@ -232,6 +254,7 @@ const approveSignupRequest = async (req, res, next) => {
     next(err);
   }
 };
+
 const rejectSignupRequest = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -251,9 +274,7 @@ const getPatients = async (req, res, next) => {
   try {
     const data = await prisma.patient.findMany({
       include: {
-        user: {
-          select: { name: true, email: true, phone: true, createdAt: true },
-        },
+        user: { select: { name: true, email: true, phone: true, createdAt: true } },
         _count: { select: { appointments: true } },
       },
       orderBy: { user: { createdAt: "desc" } },
@@ -270,14 +291,17 @@ const getAdmissions = async (req, res, next) => {
     const data = await prisma.admission.findMany({
       include: {
         patient: {
-          include: {
-            user: { select: { name: true, email: true, phone: true } },
-          },
+          include: { user: { select: { name: true, email: true, phone: true } } },
         },
       },
       orderBy: { createdAt: "desc" },
     });
-    return success(res, data);
+    // Normalize urgency back to frontend format
+    const normalized = data.map(a => ({
+      ...a,
+      urgency: a.urgency === 'semi_urgent' ? 'semi-urgent' : a.urgency
+    }));
+    return success(res, normalized);
   } catch (err) {
     next(err);
   }
@@ -287,17 +311,14 @@ const updateAdmissionStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const adm = await prisma.admission.update({
-      where: { id },
-      data: { status },
-    });
+    const adm = await prisma.admission.update({ where: { id }, data: { status } });
     return success(res, adm, "Admission status updated");
   } catch (err) {
     next(err);
   }
 };
 
-// ─── Promotions (global/admin) ────────────────────────────────────────────────
+// ─── Promotions ───────────────────────────────────────────────────────────────
 const getAllPromotions = async (req, res, next) => {
   try {
     const data = await prisma.promotion.findMany({
@@ -312,7 +333,20 @@ const getAllPromotions = async (req, res, next) => {
 
 const createPromotion = async (req, res, next) => {
   try {
-    const promo = await prisma.promotion.create({ data: req.body });
+    const { title, desc, description, type, discount, validTill, applicableTo, color, active } = req.body;
+    if (!title) return error(res, "Title required", 400);
+    const promo = await prisma.promotion.create({
+      data: {
+        title,
+        desc: desc || description || "",      // schema field is 'desc'
+        type: type || "Discount",
+        discount: discount || "",
+        validTill: validTill || null,          // store as string, not Date
+        applicableTo: applicableTo || "all",
+        color: color || "linear-gradient(135deg,#1a73e8,#60a5fa)",
+        active: active !== undefined ? Boolean(active) : true,
+      },
+    });
     return success(res, promo, "Promotion created", 201);
   } catch (err) {
     next(err);
@@ -322,9 +356,19 @@ const createPromotion = async (req, res, next) => {
 const updatePromotion = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { title, desc, description, type, discount, validTill, applicableTo, color, active } = req.body;
     const updated = await prisma.promotion.update({
       where: { id },
-      data: req.body,
+      data: {
+        title,
+        desc: desc || description || "",      // schema field is 'desc'
+        type: type || "Discount",
+        discount: discount || "",
+        validTill: validTill || null,
+        applicableTo: applicableTo || "all",
+        color: color || "linear-gradient(135deg,#1a73e8,#60a5fa)",
+        active: active !== undefined ? Boolean(active) : true,
+      },
     });
     return success(res, updated);
   } catch (err) {
@@ -372,9 +416,7 @@ const updateServiceRequest = async (req, res, next) => {
 // ─── Team Members ─────────────────────────────────────────────────────────────
 const getTeamMembers = async (req, res, next) => {
   try {
-    const data = await prisma.teamMember.findMany({
-      orderBy: { addedAt: "desc" },
-    });
+    const data = await prisma.teamMember.findMany({ orderBy: { addedAt: "desc" } });
     return success(res, data);
   } catch (err) {
     next(err);
@@ -389,7 +431,7 @@ const addTeamMember = async (req, res, next) => {
         name,
         email,
         role,
-        permissions: permissions ? permissions.join(",") : null,
+        permissions: Array.isArray(permissions) ? permissions.join(",") : permissions || "",
         avatar,
       },
     });
@@ -403,21 +445,13 @@ const updateTeamMember = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name, email, role, avatar, permissions, status } = req.body;
-
     const updated = await prisma.teamMember.update({
       where: { id },
       data: {
-        name,
-        email,
-        role,
-        avatar,
-        status,
-        permissions: Array.isArray(permissions)
-          ? permissions.join(",")
-          : permissions || "",
+        name, email, role, avatar, status,
+        permissions: Array.isArray(permissions) ? permissions.join(",") : permissions || "",
       },
     });
-
     return success(res, updated);
   } catch (err) {
     next(err);

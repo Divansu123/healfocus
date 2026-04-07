@@ -1,8 +1,36 @@
 import { useState, useEffect } from 'react'
 import { PageTitle, EmptyState } from '@/components/ui'
-import { Search } from 'lucide-react'
+import { Search, Download } from 'lucide-react'
 import { adminApi } from '@/api'
 import toast from 'react-hot-toast'
+
+function exportPatientsExcel(patients) {
+  const headers = ['#', 'Name', 'Email', 'Phone', 'Age', 'Gender', 'Blood Type', 'City', 'Allergies', 'Conditions']
+  const rows = patients.map((p, i) => [
+    i + 1,
+    p.user?.name || '',
+    p.user?.email || '',
+    p.user?.phone || '',
+    p.patient?.age || '',
+    p.patient?.gender || '',
+    p.patient?.bloodType || '',
+    p.patient?.city || '',
+    p.patient?.allergies || '',
+    p.patient?.conditions || '',
+  ])
+  const bom = '\uFEFF'
+  const csv = bom + [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `healfocus_patients_${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('Excel file downloaded!')
+}
 
 export default function AdminPatients() {
   const [patients, setPatients] = useState([])
@@ -57,7 +85,16 @@ export default function AdminPatients() {
 
   return (
     <div>
-      <PageTitle icon="👥">Patients ({patients.length})</PageTitle>
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <PageTitle icon="👥">Patients ({patients.length})</PageTitle>
+        <button
+          onClick={() => exportPatientsExcel(patients)}
+          disabled={!patients.length}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold rounded-full transition-all"
+        >
+          <Download size={12} /> Download Excel
+        </button>
+      </div>
       <div className="relative mb-4">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search patients..."

@@ -115,17 +115,22 @@ const getBloodSugar = async (req, res, next) => {
       where: { patientId: req.user.patientId },
       orderBy: [{ date: 'desc' }, { time: 'desc' }],
     })
-    return success(res, data)
+    // Normalize type back to frontend format
+    const normalized = data.map(r => ({ ...r, type: r.type === 'post_meal' ? 'post-meal' : r.type }))
+    return success(res, normalized)
   } catch (err) { next(err) }
 }
 
 const addBloodSugar = async (req, res, next) => {
   try {
     const { value, type, date, time, notes } = req.body
+    // Normalize type: frontend sends 'post-meal', Prisma enum uses 'post_meal'
+    const normalizedType = type === 'post-meal' ? 'post_meal' : (type || 'fasting')
     const r = await prisma.bloodSugarReading.create({
-      data: { patientId: req.user.patientId, value: parseFloat(value), type, date, time, notes },
+      data: { patientId: req.user.patientId, value: parseFloat(value), type: normalizedType, date, time, notes },
     })
-    return success(res, r, 'Reading added', 201)
+    // Return with frontend-friendly type value
+    return success(res, { ...r, type: r.type === 'post_meal' ? 'post-meal' : r.type }, 'Reading added', 201)
   } catch (err) { next(err) }
 }
 
@@ -320,17 +325,31 @@ const getAdmissions = async (req, res, next) => {
       where: { patientId: req.user.patientId },
       orderBy: { createdAt: 'desc' },
     })
-    return success(res, data)
+    // Normalize urgency back to frontend format
+    const normalized = data.map(a => ({
+      ...a,
+      urgency: a.urgency === 'semi_urgent' ? 'semi-urgent' : a.urgency
+    }))
+    return success(res, normalized)
   } catch (err) { next(err) }
 }
 
 const requestAdmission = async (req, res, next) => {
   try {
     const { type, treatmentName, hospital, preferredDate, urgency, notes } = req.body
+    if (!treatmentName) return error(res, 'Treatment name is required', 400)
+    // Normalize urgency: 'semi-urgent' is not in enum, map to 'urgent'
+    const urgencyMap = { 'planned': 'planned', 'semi-urgent': 'urgent', 'urgent': 'urgent', 'emergency': 'emergency' }
+    const normalizedUrgency = urgencyMap[urgency] || 'planned'
     const adm = await prisma.admission.create({
       data: {
         patientId: req.user.patientId,
-        type, treatmentName, hospital, preferredDate, urgency, notes,
+        type: type || 'Surgery',
+        treatmentName,
+        hospital: hospital || '',
+        preferredDate: preferredDate || null,
+        urgency: normalizedUrgency,
+        notes: notes || null,
       },
     })
     return success(res, adm, 'Admission request submitted', 201)

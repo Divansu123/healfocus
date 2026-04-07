@@ -4,12 +4,25 @@ const { validate } = require("../middleware/validate");
 const { authenticate, authorize } = require("../middleware/auth");
 const ctrl = require("../controllers/admin.controller");
 
+// ─── Public bootstrap routes (no auth needed) ────────────────────────────────
+// Only used once to seed the first admin account
 router.post("/createAdmin", ctrl.createAdmin);
 
-router.post("/createHospital", ctrl.createHospital);
-
-// All admin routes require auth + admin role
+// ─── All routes below require admin authentication ────────────────────────────
 router.use(authenticate, authorize("admin"));
+
+// ─── Create Hospital directly (admin-initiated) ───────────────────────────────
+router.post(
+  "/createHospital",
+  [
+    body("name").trim().notEmpty().withMessage("Hospital name is required"),
+    body("city").trim().notEmpty().withMessage("City is required"),
+    body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
+    body("phone").trim().notEmpty().withMessage("Phone is required"),
+  ],
+  validate,
+  ctrl.createHospital,
+);
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
 router.get("/overview", ctrl.getOverview);
