@@ -29,7 +29,7 @@ enum AdmissionStatus {
   pending
   approved
   rejected
-  discharged
+  reviewing
 }
 
 enum AdmissionUrgency {
