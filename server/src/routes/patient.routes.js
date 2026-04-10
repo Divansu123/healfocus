@@ -106,4 +106,30 @@ router.patch('/notifications/:id/read', ctrl.markNotificationRead)
 router.get('/consent', ctrl.getConsentRequests)
 router.patch('/consent/:id', ctrl.respondToConsent)
 
+// ─── Insurance Claims ─────────────────────────────────────────────────────────
+router.get('/insurance/claims', ctrl.getInsuranceClaims)
+router.post(
+  '/insurance/claims',
+  [
+    body('claimNo').notEmpty().withMessage('claimNo required'),
+    body('date').notEmpty().withMessage('date required'),
+    body('hospital').notEmpty().withMessage('hospital required'),
+  ],
+  validate,
+  ctrl.addInsuranceClaim
+)
+
+// ─── SOS Contacts ─────────────────────────────────────────────────────────────
+router.get('/sos-contacts', ctrl.getSosContacts)
+router.post(
+  '/sos-contacts',
+  [
+    body('name').notEmpty().withMessage('name required'),
+    body('phone').notEmpty().withMessage('phone required'),
+  ],
+  validate,
+  ctrl.addSosContact
+)
+router.delete('/sos-contacts/:id', ctrl.deleteSosContact)
+
 module.exports = router

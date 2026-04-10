@@ -27,7 +27,7 @@ const getHospitals = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
-// ─── Doctors ──────────────────────────────────────────────────────────────────
+// ─── Doctors ─────────────────────────────────────────────────────────────────
 const getDoctors = async (req, res, next) => {
   try {
     const { specialityId, hospitalId } = req.query

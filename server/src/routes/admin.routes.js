@@ -87,4 +87,11 @@ router.delete("/team/:id", ctrl.removeTeamMember);
 router.get("/notifications", ctrl.getNotifications);
 router.patch("/notifications/:id/read", ctrl.markNotificationRead);
 
+// ─── Patient Records (consent-gated) ─────────────────────────────────────────
+router.get("/patients/:patientId/records", ctrl.getPatientRecords);
+
+// ─── Consent Management ───────────────────────────────────────────────────────
+router.get("/consent", ctrl.getAllConsentRequests);
+router.post("/consent/request", ctrl.requestPatientConsent);
+
 module.exports = router;

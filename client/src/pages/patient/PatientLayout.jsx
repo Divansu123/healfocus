@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { BottomNav, Sidebar } from '@/components/ui'
 import { Menu, Bell, LogOut } from 'lucide-react'
-import { authApi } from '@/api'
+import { authApi, patientApi } from '@/api'
 
 const BOTTOM_TABS = [
   { id: '/patient',              label: 'Home',    icon: '🏠' },
@@ -34,6 +34,16 @@ export default function PatientLayout() {
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    patientApi.getNotifications()
+      .then(res => {
+        const data = res.data?.data || []
+        setUnreadCount(data.filter(n => !n.read).length)
+      })
+      .catch(() => {})
+  }, [location.pathname])
 
   const activePath = location.pathname
   const activeBottom = BOTTOM_TABS.find(t => t.id === activePath)?.id || '/patient'
@@ -64,6 +74,11 @@ export default function PatientLayout() {
           <div className="flex items-center gap-2">
             <button onClick={() => navigate('/patient/notifications')} className="relative p-1">
               <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
             <button onClick={handleLogout} className="hidden lg:flex items-center gap-1.5 bg-white/10 px-2.5 py-1.5 rounded-full text-xs font-bold">
               <LogOut size={12} /> Logout

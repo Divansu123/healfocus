@@ -35,6 +35,7 @@ import AdminServiceRequests from '@/pages/admin/AdminServiceRequests'
 import AdminOnboarding from '@/pages/admin/AdminOnboarding'
 import AdminTeam from '@/pages/admin/AdminTeam'
 import AdminBillCheck from '@/pages/admin/AdminBillCheck'
+import AdminRecords from '@/pages/admin/AdminRecords'
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -87,6 +88,7 @@ export default function App() {
         <Route path="onboarding" element={<AdminOnboarding />} />
         <Route path="team" element={<AdminTeam />} />
         <Route path="billcheck" element={<AdminBillCheck />} />
+        <Route path="records" element={<AdminRecords />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

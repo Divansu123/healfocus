@@ -260,16 +260,54 @@ function SOSTab() {
   const { user } = useAuthStore()
   const [triggered, setTriggered] = useState(false)
   const [largeText, setLargeText] = useState(false)
+  const [contacts, setContacts] = useState([])
+  const [loadingC, setLoadingC] = useState(true)
+  const [addModal, setAddModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ name: '', relation: 'Family', phone: '', icon: '👤' })
+  const setF = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const CONTACTS = [
+  const ICONS = ['👤','👩','👨','👦','👧','👴','👵','🧑','👩‍⚕️','👨‍⚕️']
+  const RELATIONS = ['Family','Spouse','Parent','Child','Sibling','Friend','Doctor','Neighbour','Other']
+
+  const GOV_CONTACTS = [
     { icon:'🚑', name:'Ambulance',     relation:'Emergency', phone:'108' },
     { icon:'🚔', name:'Police',         relation:'Emergency', phone:'100' },
     { icon:'🔥', name:'Fire Brigade',   relation:'Emergency', phone:'101' },
     { icon:'💊', name:'Poison Control', relation:'Medical',   phone:'1800-11-6117' },
   ]
 
+  const loadContacts = () => {
+    patientApi.getSosContacts()
+      .then(res => setContacts(res.data?.data || []))
+      .catch(() => {})
+      .finally(() => setLoadingC(false))
+  }
+  useEffect(() => { loadContacts() }, [])
+
+  const saveContact = async () => {
+    if (!form.name || !form.phone) { toast.error('Name and phone required'); return }
+    setSaving(true)
+    try {
+      await patientApi.addSosContact(form)
+      toast.success('Contact added')
+      setAddModal(false)
+      setForm({ name: '', relation: 'Family', phone: '', icon: '👤' })
+      loadContacts()
+    } catch { toast.error('Failed to add') } finally { setSaving(false) }
+  }
+
+  const deleteContact = async (id) => {
+    if (!window.confirm('Remove this contact?')) return
+    try {
+      await patientApi.deleteSosContact(id)
+      toast.success('Removed')
+      loadContacts()
+    } catch { toast.error('Failed') }
+  }
+
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${largeText ? 'text-lg' : ''}`}>
       {/* SOS Button */}
       <div className="bg-white border border-red-100 rounded-2xl p-4 shadow-card">
         <p className="text-sm font-black text-gray-900 mb-1">🆘 Emergency SOS</p>
@@ -290,11 +328,45 @@ function SOSTab() {
         )}
       </div>
 
-      {/* Emergency Contacts */}
+      {/* Personal Emergency Contacts */}
       <div className="bg-white border border-primary-100 rounded-2xl p-4 shadow-card">
-        <p className="text-xs font-bold text-gray-600 mb-3">📞 Emergency Contacts</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-bold text-gray-600">👥 My Emergency Contacts</p>
+          <button onClick={() => setAddModal(true)}
+            className="flex items-center gap-1 text-xs font-bold text-primary-600 bg-primary-50 px-2.5 py-1 rounded-full">
+            <Plus size={11} /> Add
+          </button>
+        </div>
+        {loadingC ? (
+          <div className="text-xs text-gray-400 text-center py-3">Loading...</div>
+        ) : contacts.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-3">No personal contacts added yet</p>
+        ) : (
+          <div className="space-y-2">
+            {contacts.map(c => (
+              <div key={c.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50">
+                <span className="text-2xl">{c.icon || '👤'}</span>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-gray-800">{c.name}</p>
+                  <p className="text-[10px] text-gray-500">{c.relation}</p>
+                </div>
+                <a href={`tel:${c.phone}`} className="flex items-center gap-1 text-xs font-black text-primary-600 mr-1">
+                  <Phone size={11} /> {c.phone}
+                </a>
+                <button onClick={() => deleteContact(c.id)} className="text-gray-300 hover:text-red-400">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Government Emergency Numbers */}
+      <div className="bg-white border border-primary-100 rounded-2xl p-4 shadow-card">
+        <p className="text-xs font-bold text-gray-600 mb-3">📞 Government Emergency Numbers</p>
         <div className="space-y-2">
-          {CONTACTS.map(c => (
+          {GOV_CONTACTS.map(c => (
             <a key={c.name} href={`tel:${c.phone}`}
               className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors">
               <span className="text-2xl">{c.icon}</span>
@@ -338,6 +410,51 @@ function SOSTab() {
           ))}
         </div>
       </div>
+
+      {/* Add Contact Modal */}
+      {addModal && (
+        <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setAddModal(false)} />
+          <div className="relative bg-white w-full max-w-sm rounded-t-3xl lg:rounded-3xl p-5 space-y-3">
+            <p className="text-sm font-black text-gray-900">👥 Add Emergency Contact</p>
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">Name *</label>
+              <input value={form.name} onChange={setF('name')} placeholder="Full name"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-400" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Relation</label>
+                <select value={form.relation} onChange={setF('relation')}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-400">
+                  {RELATIONS.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Phone *</label>
+                <input value={form.phone} onChange={setF('phone')} placeholder="+91 98765..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-400" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">Icon</label>
+              <div className="flex flex-wrap gap-2">
+                {ICONS.map(ic => (
+                  <button key={ic} onClick={() => setForm(f => ({ ...f, icon: ic }))}
+                    className={`text-xl p-1 rounded-lg border-2 ${form.icon === ic ? 'border-primary-500' : 'border-transparent'}`}>{ic}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setAddModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-2xl text-sm font-bold text-gray-500">Cancel</button>
+              <button onClick={saveContact} disabled={saving}
+                className="flex-1 py-2.5 bg-gradient-to-r from-primary-800 to-violet-700 text-white rounded-2xl text-sm font-bold disabled:opacity-60">
+                {saving ? 'Saving...' : 'Add Contact'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

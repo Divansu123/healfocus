@@ -402,6 +402,70 @@ const respondToConsent = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
+// ─── Insurance Claims ─────────────────────────────────────────────────────────
+const getInsuranceClaims = async (req, res, next) => {
+  try {
+    const claims = await prisma.insuranceClaim.findMany({
+      where: { patientId: req.user.patientId },
+      include: { insurance: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    return success(res, claims)
+  } catch (err) { next(err) }
+}
+
+const addInsuranceClaim = async (req, res, next) => {
+  try {
+    const { insuranceId, claimNo, date, hospital, reason, amount } = req.body
+    if (!claimNo || !date || !hospital) return require('../utils/response').error(res, 'claimNo, date and hospital required', 400)
+    const claim = await prisma.insuranceClaim.create({
+      data: {
+        patientId: req.user.patientId,
+        insuranceId,
+        claimNo,
+        date,
+        hospital,
+        reason,
+        amount: amount ? parseFloat(amount) : null,
+        status: 'processing',
+      },
+    })
+    return success(res, claim, 'Claim submitted', 201)
+  } catch (err) { next(err) }
+}
+
+// ─── SOS Contacts ─────────────────────────────────────────────────────────────
+const getSosContacts = async (req, res, next) => {
+  try {
+    const contacts = await prisma.sosContact.findMany({
+      where: { patientId: req.user.patientId },
+      orderBy: { createdAt: 'asc' },
+    })
+    return success(res, contacts)
+  } catch (err) { next(err) }
+}
+
+const addSosContact = async (req, res, next) => {
+  try {
+    const { name, relation, phone, icon } = req.body
+    if (!name || !phone) return require('../utils/response').error(res, 'name and phone required', 400)
+    const contact = await prisma.sosContact.create({
+      data: { patientId: req.user.patientId, name, relation: relation || 'Other', phone, icon: icon || '👤' },
+    })
+    return success(res, contact, 'Contact added', 201)
+  } catch (err) { next(err) }
+}
+
+const deleteSosContact = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const c = await prisma.sosContact.findFirst({ where: { id, patientId: req.user.patientId } })
+    if (!c) return require('../utils/response').error(res, 'Not found', 404)
+    await prisma.sosContact.delete({ where: { id } })
+    return success(res, null, 'Contact removed')
+  } catch (err) { next(err) }
+}
+
 module.exports = {
   getProfile, updateProfile,
   getAppointments, bookAppointment, cancelAppointment,
@@ -413,6 +477,8 @@ module.exports = {
   getReminders, addReminder, toggleReminder, deleteReminder,
   getFamilyMembers, addFamilyMember, deleteFamilyMember,
   getInsurance, addInsuranceCard,
+  getInsuranceClaims, addInsuranceClaim,
+  getSosContacts, addSosContact, deleteSosContact,
   getAdmissions, requestAdmission,
   getNotifications, markNotificationRead,
   getConsentRequests, respondToConsent,

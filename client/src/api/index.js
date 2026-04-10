@@ -153,6 +153,15 @@ export const patientApi = {
   getInsurance: () => api.get("/patient/insurance"),
   addInsurance: (payload) => api.post("/patient/insurance", payload),
 
+  // Insurance Claims
+  getInsuranceClaims: () => api.get("/patient/insurance/claims"),
+  addInsuranceClaim: (payload) => api.post("/patient/insurance/claims", payload),
+
+  // SOS Contacts
+  getSosContacts: () => api.get("/patient/sos-contacts"),
+  addSosContact: (payload) => api.post("/patient/sos-contacts", payload),
+  deleteSosContact: (id) => api.delete(`/patient/sos-contacts/${id}`),
+
   // Admissions
   getAdmissions: () => api.get("/patient/admissions"),
   requestAdmission: (payload) => api.post("/patient/admissions", payload),
@@ -265,4 +274,11 @@ export const adminApi = {
   // Notifications
   getNotifications: () => api.get("/admin/notifications"),
   markNotificationRead: (id) => api.patch(`/admin/notifications/${id}/read`),
+
+  // Patient Records (consent-gated)
+  getPatientRecords: (patientId) => api.get(`/admin/patients/${patientId}/records`),
+
+  // Consent Management
+  getAllConsentRequests: () => api.get("/admin/consent"),
+  requestPatientConsent: (payload) => api.post("/admin/consent/request", payload),
 };

@@ -14,6 +14,7 @@ const NAV = [
   { id: 'onboarding', icon: '✅', label: 'Onboarding' },
   { section: 'Patients' },
   { id: 'patients',   icon: '👥', label: 'Patients' },
+  { id: 'records',    icon: '📁', label: 'Patient Records' },
   { id: 'admissions', icon: '🛏️', label: 'Admissions' },
   { section: 'Operations' },
   { id: 'promos',     icon: '🎁', label: 'Promotions' },

@@ -17,6 +17,7 @@ export default function PatientRecords() {
     { id: 'records',   label: '📄 Records'  },
     { id: 'family',    label: '👨‍👩‍👧 Family'   },
     { id: 'insurance', label: '🛡️ Insurance' },
+    { id: 'claims',    label: '📋 Claims'   },
   ]
 
   return (
@@ -28,6 +29,7 @@ export default function PatientRecords() {
           {tab === 'records'   && <MedicalRecords />}
           {tab === 'family'    && <FamilyMembers />}
           {tab === 'insurance' && <InsuranceTab />}
+          {tab === 'claims'    && <InsuranceClaimsTab />}
         </div>
       </div>
     </div>
@@ -247,6 +249,122 @@ function InsuranceTab() {
         <FormGroup label="Members Covered"><Input placeholder="Names of covered members" value={form.membersName} onChange={set('membersName')} /></FormGroup>
         <FormGroup label="Emergency No"><Input placeholder="1800-xxx-xxxx" value={form.emergencyNo} onChange={set('emergencyNo')} /></FormGroup>
         <Button onClick={save} loading={saving}>Add Insurance</Button>
+      </Modal>
+    </div>
+  )
+}
+
+// ─── Insurance Claims Tab ──────────────────────────────────────────────────────
+function InsuranceClaimsTab() {
+  const [claims, setClaims] = useState([])
+  const [cards, setCards] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const BLANK = { insuranceId: '', claimNo: '', date: today(), hospital: '', reason: '', amount: '' }
+  const [form, setForm] = useState(BLANK)
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const STATUS_COLOR = {
+    processing: 'bg-amber-100 text-amber-700',
+    approved:   'bg-green-100 text-green-700',
+    rejected:   'bg-red-100 text-red-700',
+  }
+  const STATUS_ICON = { processing: '⏳', approved: '✅', rejected: '❌' }
+
+  const load = () => {
+    setLoading(true)
+    Promise.all([patientApi.getInsuranceClaims(), patientApi.getInsurance()])
+      .then(([clRes, cardRes]) => {
+        setClaims(clRes.data?.data || [])
+        setCards(cardRes.data?.data || [])
+      })
+      .catch(() => toast.error('Failed to load claims'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => { load() }, [])
+
+  const save = async () => {
+    if (!form.claimNo || !form.date || !form.hospital) {
+      toast.error('Claim no, date and hospital required')
+      return
+    }
+    setSaving(true)
+    try {
+      await patientApi.addInsuranceClaim({
+        ...form,
+        amount: form.amount ? parseFloat(form.amount) : undefined,
+      })
+      toast.success('Claim submitted')
+      setModal(false)
+      setForm(BLANK)
+      load()
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to submit')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary-800 to-violet-700 text-white text-xs font-bold rounded-full">
+          <Plus size={12} /> File Claim
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-6 text-gray-400">Loading...</div>
+      ) : !claims.length ? (
+        <EmptyState icon="📋" title="No insurance claims filed" />
+      ) : claims.map(c => (
+        <div key={c.id} className="bg-white border border-primary-100 rounded-2xl p-4 shadow-card">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <p className="text-xs font-black text-primary-950">{c.claimNo}</p>
+              <p className="text-[11px] text-gray-500">{c.hospital} · {fmtDate(c.date)}</p>
+            </div>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status] || 'bg-gray-100 text-gray-600'}`}>
+              {STATUS_ICON[c.status]} {c.status}
+            </span>
+          </div>
+          {c.reason && <p className="text-xs text-gray-600 mb-2">{c.reason}</p>}
+          <div className="flex gap-4 text-xs">
+            {c.amount && (
+              <div>
+                <span className="text-gray-400">Claimed: </span>
+                <span className="font-bold text-gray-800">₹{Number(c.amount).toLocaleString('en-IN')}</span>
+              </div>
+            )}
+            {c.approvedAmount != null && (
+              <div>
+                <span className="text-gray-400">Approved: </span>
+                <span className="font-bold text-green-700">₹{Number(c.approvedAmount).toLocaleString('en-IN')}</span>
+              </div>
+            )}
+          </div>
+          {c.remarks && <p className="text-[11px] text-gray-400 mt-2 italic">{c.remarks}</p>}
+        </div>
+      ))}
+
+      <Modal open={modal} onClose={() => setModal(false)} title="📋 File Insurance Claim">
+        {cards.length > 0 && (
+          <FormGroup label="Insurance Policy">
+            <Select value={form.insuranceId} onChange={set('insuranceId')}>
+              <option value="">-- Select policy --</option>
+              {cards.map(c => <option key={c.id} value={c.id}>{c.provider} · {c.policyNo}</option>)}
+            </Select>
+          </FormGroup>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <FormGroup label="Claim No *"><Input placeholder="CLM-2026-XXXX" value={form.claimNo} onChange={set('claimNo')} /></FormGroup>
+          <FormGroup label="Date *"><Input type="date" value={form.date} onChange={set('date')} /></FormGroup>
+        </div>
+        <FormGroup label="Hospital *"><Input placeholder="Hospital name" value={form.hospital} onChange={set('hospital')} /></FormGroup>
+        <FormGroup label="Reason / Diagnosis"><Textarea placeholder="Reason for claim..." value={form.reason} onChange={set('reason')} /></FormGroup>
+        <FormGroup label="Claim Amount (₹)"><Input type="number" placeholder="85000" value={form.amount} onChange={set('amount')} /></FormGroup>
+        <Button onClick={save} loading={saving}>Submit Claim</Button>
       </Modal>
     </div>
   )

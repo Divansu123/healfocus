@@ -550,6 +550,84 @@ const markNotificationRead = async (req, res, next) => {
   }
 };
 
+// ─── Patient Medical Records (with consent check) ─────────────────────────────
+const getPatientRecords = async (req, res, next) => {
+  try {
+    const { patientId } = req.params;
+    // Check consent - admin can only view if patient has granted admin consent
+    const consent = await prisma.consentRequest.findFirst({
+      where: { patientId, role: "admin", status: "approved" },
+    });
+    if (!consent)
+      return error(
+        res,
+        "Patient has not granted consent for admin access",
+        403,
+      );
+    const records = await prisma.medicalRecord.findMany({
+      where: { patientId },
+      orderBy: { date: "desc" },
+    });
+    return success(res, records);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── All Consent Requests (admin view) ────────────────────────────────────────
+const getAllConsentRequests = async (req, res, next) => {
+  try {
+    const data = await prisma.consentRequest.findMany({
+      include: {
+        patient: {
+          include: { user: { select: { name: true, email: true } } },
+        },
+      },
+      orderBy: { requestedAt: "desc" },
+    });
+    return success(res, data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Request consent from patient ─────────────────────────────────────────────
+const requestPatientConsent = async (req, res, next) => {
+  try {
+    const { patientId, purpose } = req.body;
+    if (!patientId) return error(res, "patientId required", 400);
+    // Check if already pending/approved
+    const existing = await prisma.consentRequest.findFirst({
+      where: {
+        patientId,
+        role: "admin",
+        status: { in: ["pending", "approved"] },
+      },
+    });
+    if (existing)
+      return error(
+        res,
+        existing.status === "approved"
+          ? "Consent already granted"
+          : "Consent request already pending",
+        409,
+      );
+    const req2 = await prisma.consentRequest.create({
+      data: {
+        patientId,
+        requestedBy: "admin",
+        role: "admin",
+        hospName: "Heal Focus Admin",
+        purpose: purpose || "Medical record review",
+        status: "pending",
+      },
+    });
+    return success(res, req2, "Consent request sent to patient", 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createAdmin,
   createHospital,
@@ -574,4 +652,7 @@ module.exports = {
   removeTeamMember,
   getNotifications,
   markNotificationRead,
+  getPatientRecords,
+  getAllConsentRequests,
+  requestPatientConsent,
 };

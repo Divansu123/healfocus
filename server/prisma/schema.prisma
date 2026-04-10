@@ -156,6 +156,7 @@ model Patient {
   admissions      Admission[]
   familyMembers   FamilyMember[]
   consentRequests ConsentRequest[]
+  sosContacts     SosContact[]
 
   @@map("patients")
 }
@@ -617,4 +618,18 @@ model TeamMember {
   addedAt     DateTime @default(now())
 
   @@map("team_members")
+}
+
+model SosContact {
+  id        String   @id @default(uuid())
+  patientId String
+  name      String
+  relation  String
+  phone     String
+  icon      String?  @default("👤")
+  createdAt DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("sos_contacts")
 }
