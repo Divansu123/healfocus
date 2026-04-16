@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
-import { BottomNav, Sidebar } from '@/components/ui'
+import { Sidebar } from '@/components/ui'
 import { Menu, Bell, LogOut } from 'lucide-react'
 import { authApi, patientApi } from '@/api'
 
@@ -90,9 +90,6 @@ export default function PatientLayout() {
             <Outlet />
           </div>
         </main>
-        <div className="lg:hidden">
-          <BottomNav tabs={BOTTOM_TABS} active={activeBottom} onChange={(id) => navigate(id)} />
-        </div>
       </div>
     </div>
   )

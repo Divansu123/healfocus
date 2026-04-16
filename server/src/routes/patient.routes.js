@@ -2,6 +2,7 @@ const router = require('express').Router()
 const { body, param } = require('express-validator')
 const { validate } = require('../middleware/validate')
 const { authenticate, authorize } = require('../middleware/auth')
+const { uploadRecordAttachments, uploadSkinScan, uploadInsuranceAttachments } = require('../middleware/upload')
 const ctrl = require('../controllers/patient.controller')
 
 // All patient routes require auth + patient role
@@ -40,6 +41,28 @@ router.post(
   ctrl.addMedicalRecord
 )
 router.delete('/records/:id', ctrl.deleteMedicalRecord)
+
+// ─── Medical Record File Upload (multer) ──────────────────────────────────────
+router.post(
+  '/records/:id/upload',
+  (req, res, next) =>
+    uploadRecordAttachments(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message })
+      next()
+    }),
+  ctrl.uploadRecordFiles
+)
+
+// ─── Skin Scan Upload (multer) ────────────────────────────────────────────────
+router.post(
+  '/skin-scan/upload',
+  (req, res, next) =>
+    uploadSkinScan(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message })
+      next()
+    }),
+  ctrl.uploadSkinImage
+)
 
 // ─── Blood Sugar ──────────────────────────────────────────────────────────────
 router.get('/health/blood-sugar', ctrl.getBloodSugar)
@@ -94,6 +117,17 @@ router.delete('/family/:id', ctrl.deleteFamilyMember)
 router.get('/insurance', ctrl.getInsurance)
 router.post('/insurance', ctrl.addInsuranceCard)
 
+// ─── Insurance File Upload ────────────────────────────────────────────────────
+router.post(
+  '/insurance/:id/upload',
+  (req, res, next) =>
+    uploadInsuranceAttachments(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message })
+      next()
+    }),
+  ctrl.uploadInsuranceFiles
+)
+
 // ─── Admissions ───────────────────────────────────────────────────────────────
 router.get('/admissions', ctrl.getAdmissions)
 router.post('/admissions', ctrl.requestAdmission)
@@ -117,6 +151,17 @@ router.post(
   ],
   validate,
   ctrl.addInsuranceClaim
+)
+
+// ─── Insurance Claim File Upload ──────────────────────────────────────────────
+router.post(
+  '/insurance/claims/:id/upload',
+  (req, res, next) =>
+    uploadInsuranceAttachments(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message })
+      next()
+    }),
+  ctrl.uploadClaimFiles
 )
 
 // ─── SOS Contacts ─────────────────────────────────────────────────────────────

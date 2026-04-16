@@ -125,22 +125,6 @@ export function Tabs({ tabs, active, onChange }) {
   )
 }
 
-// ── BottomNav ──
-export function BottomNav({ tabs, active, onChange }) {
-  return (
-    <nav className="sticky bottom-0 bg-white border-t border-primary-100 flex px-1 py-1 z-10 shadow-[0_-2px_12px_rgba(55,48,163,.08)] bottom-nav-safe flex-shrink-0">
-      {tabs.map(t => (
-        <button key={t.id} onClick={() => onChange(t.id)}
-          className={cn('flex-1 flex flex-col items-center gap-1 py-2 px-1 rounded-xl transition-all', active === t.id ? 'bg-primary-50' : 'hover:bg-gray-50')}
-        >
-          <span className="text-[17px] leading-none">{t.icon}</span>
-          <span className={cn('text-[9px] font-bold leading-none', active === t.id ? 'text-primary-700' : 'text-gray-400')}>{t.label}</span>
-        </button>
-      ))}
-    </nav>
-  )
-}
-
 // ── StatsGrid ──
 export function StatsGrid({ items }) {
   return (

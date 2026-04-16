@@ -9,7 +9,28 @@ import { patientApi } from '@/api'
 const TABS = [
   { v: 'checkin', l: '😊 Vibe Check' },
   { v: 'skin',    l: '📸 Skin AI'    },
+  { v: 'avatar',  l: '🦸 Avatar'     },
   { v: 'streaks', l: '🔥 Streaks'    },
+]
+
+// ── AVATAR STAGES ──────────────────────────────────────────────────────────────
+const AVATAR_STAGES = [
+  { minLv: 0,  emoji: '🧍', title: 'Just Started',     subtitle: 'Begin your journey',       glow: '#94a3b8' },
+  { minLv: 2,  emoji: '🚶', title: 'Getting Active',   subtitle: 'Building habits',           glow: '#60a5fa' },
+  { minLv: 4,  emoji: '🏃', title: 'On the Move',      subtitle: 'Momentum is building',      glow: '#34d399' },
+  { minLv: 6,  emoji: '🏋️', title: 'Fitness Seeker',   subtitle: 'Strength & consistency',    glow: '#a78bfa' },
+  { minLv: 9,  emoji: '🦸', title: 'Wellness Warrior', subtitle: 'Leading by example',        glow: '#6d28d9' },
+  { minLv: 13, emoji: '🧬', title: 'Health Legend',    subtitle: 'Peak human unlocked',       glow: '#fbbf24' },
+]
+
+const DEFAULT_GOALS = [
+  { id: 'G1', icon: '❤️', label: 'Log vitals 3 days in a row',     xp: 10, done: false },
+  { id: 'G2', icon: '🔥', label: 'Maintain 7-day health streak',   xp: 20, done: false },
+  { id: 'G3', icon: '🧘', label: 'Complete 5 wellness sessions',   xp: 15, done: false },
+  { id: 'G4', icon: '📸', label: 'Upload 3 skin scans',            xp: 10, done: false },
+  { id: 'G5', icon: '😊', label: 'Log mood for 7 days',            xp: 10, done: false },
+  { id: 'G6', icon: '💊', label: 'Mark all medications done',      xp: 5,  done: false },
+  { id: 'G7', icon: '💧', label: 'Complete water reminders 5 days',xp: 8,  done: false },
 ]
 
 // ── CHECKIN DECK ──────────────────────────────────────────────────────────────
@@ -62,6 +83,7 @@ export default function PatientGenZ() {
         </div>
         {tab === 'checkin' && <VibeCheckTab />}
         {tab === 'skin'    && <SkinAITab />}
+        {tab === 'avatar'  && <AvatarTab />}
         {tab === 'streaks' && <StreaksTab />}
       </div>
     </div>
@@ -185,15 +207,60 @@ function VibeCheckTab() {
 function SkinAITab() {
   const [scans, setScans]     = useState([])
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const runScan = (file) => {
     setLoading(true)
-    setTimeout(() => {
-      const result = getMockSkinResult()
-      setScans(prev => [result, ...prev].slice(0, 6))
-      setLoading(false)
-      toast.success('Scan complete! 📸')
-    }, 2200)
+
+    // If a real file is provided, upload it to the server first
+    if (file) {
+      setUploading(true)
+      const fd = new FormData()
+      fd.append('skinImage', file)
+      patientApi.uploadSkinScan(fd)
+        .then(() => {
+          toast.success('Image uploaded! 📸')
+        })
+        .catch(() => {
+          toast.error('Upload failed, running demo scan instead')
+        })
+        .finally(() => {
+          setUploading(false)
+          // Run mock AI analysis after upload
+          setTimeout(() => {
+            const result = getMockSkinResult()
+            setScans(prev => [result, ...prev].slice(0, 6))
+            setLoading(false)
+            toast.success('Scan complete! ✨')
+          }, 1800)
+        })
+    } else {
+      // Demo scan without upload
+      setTimeout(() => {
+        const result = getMockSkinResult()
+        setScans(prev => [result, ...prev].slice(0, 6))
+        setLoading(false)
+        toast.success('Demo scan complete! 📊')
+      }, 2200)
+    }
+  }
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['jpg','jpeg','png'].includes(ext)) {
+      toast.error('Only JPG and PNG images are allowed')
+      e.target.value = ''
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('Image must be smaller than 8MB')
+      e.target.value = ''
+      return
+    }
+    runScan(file)
+    e.target.value = ''
   }
 
   const latest = scans[0]
@@ -212,11 +279,16 @@ function SkinAITab() {
       </div>
 
       {/* Upload */}
-      <label className="flex flex-col items-center gap-2 bg-white border-2 border-dashed border-violet-300 rounded-2xl p-6 cursor-pointer hover:border-violet-500 transition-colors">
-        <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) { runScan(e.target.files[0]); e.target.value = '' } }} />
-        <span className="text-5xl">🤳</span>
-        <p className="text-sm font-black text-violet-700">Upload a Selfie</p>
-        <p className="text-xs text-gray-500">AI analyses skin health, hydration & acne</p>
+      <label className={`flex flex-col items-center gap-2 bg-white border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-colors
+        ${loading || uploading ? 'border-gray-200 opacity-60 pointer-events-none' : 'border-violet-300 hover:border-violet-500'}`}>
+        <input type="file" accept=".jpg,.jpeg,.png" className="hidden" onChange={handleFileChange} disabled={loading || uploading} />
+        <span className="text-5xl">{uploading ? '⏳' : '🤳'}</span>
+        <p className="text-sm font-black text-violet-700">
+          {uploading ? 'Uploading…' : 'Upload a Selfie'}
+        </p>
+        <p className="text-xs text-gray-500">
+          {uploading ? 'Saving your image securely…' : 'JPG or PNG · Max 8 MB · AI analyses skin health'}
+        </p>
         <span className="text-xs font-bold text-violet-700 bg-violet-50 px-3 py-1 rounded-full">🔒 Private · Never shared</span>
       </label>
 
@@ -317,6 +389,138 @@ function SkinAITab() {
           ℹ️ Upload a selfie or run a demo scan to begin tracking your skin health.
         </div>
       )}
+    </div>
+  )
+}
+
+// ── AVATAR TAB ─────────────────────────────────────────────────────────────────
+function AvatarTab() {
+  const STORAGE_KEY = 'healfocus_avatar'
+  const [ag, setAg] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return { level: 1, xp: 0, xpNext: 100, goals: DEFAULT_GOALS }
+  })
+
+  const save = (newAg) => {
+    setAg(newAg)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newAg)) } catch {}
+  }
+
+  const getStage = (level) => AVATAR_STAGES.reduce((a, s) => level >= s.minLv ? s : a, AVATAR_STAGES[0])
+  const stage = getStage(ag.level)
+  const xpPct = Math.round(ag.xp / ag.xpNext * 100)
+  const doneCount = ag.goals.filter(g => g.done).length
+
+  const toggleGoal = (id) => {
+    const goal = ag.goals.find(g => g.id === id)
+    if (!goal) return
+    const wasDone = goal.done
+    const newGoals = ag.goals.map(g => g.id === id ? { ...g, done: !g.done } : g)
+    let newXp = wasDone ? ag.xp - goal.xp : ag.xp + goal.xp
+    let newLevel = ag.level
+    let newXpNext = ag.xpNext
+    // Level up logic
+    while (newXp >= newXpNext) {
+      newXp -= newXpNext
+      newLevel += 1
+      newXpNext = Math.round(newXpNext * 1.3)
+    }
+    if (newXp < 0) newXp = 0
+    save({ ...ag, goals: newGoals, xp: newXp, level: newLevel, xpNext: newXpNext })
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Avatar Stage Card */}
+      <div className="rounded-3xl p-5 text-white relative overflow-hidden"
+        style={{ background: `linear-gradient(135deg,#0d0a2e,#1e1b4b,#312e81)` }}>
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <p className="text-[10px] opacity-50 tracking-widest">YOUR HEALTH AVATAR</p>
+            <p className="text-lg font-black mt-1">{stage.title}</p>
+            <p className="text-xs opacity-70 mt-0.5">{stage.subtitle}</p>
+          </div>
+          <div className="bg-white/10 border border-white/20 rounded-2xl px-4 py-2 text-center">
+            <p className="text-xl font-black">LV {ag.level}</p>
+            <p className="text-[9px] opacity-60 tracking-wide">LEVEL</p>
+          </div>
+        </div>
+
+        {/* Avatar Emoji */}
+        <div className="text-center my-4">
+          <div className="text-8xl" style={{ filter: `drop-shadow(0 8px 24px ${stage.glow}99)` }}>
+            {stage.emoji}
+          </div>
+        </div>
+
+        {/* XP Bar */}
+        <p className="text-center text-[11px] opacity-60 mb-2">
+          XP: {ag.xp} / {ag.xpNext} · Complete goals to level up
+        </p>
+        <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-violet-400 to-emerald-400 rounded-full transition-all duration-700"
+            style={{ width: `${xpPct}%` }} />
+        </div>
+        <div className="flex justify-between text-[10px] opacity-50 mt-1">
+          <span>{doneCount}/{ag.goals.length} goals</span>
+          <span>{100 - xpPct}% to next level</span>
+        </div>
+      </div>
+
+      {/* Evolution Path */}
+      <div className="bg-white border border-primary-100 rounded-2xl p-4 shadow-card">
+        <p className="text-xs font-black text-gray-700 uppercase tracking-wider mb-3">🏆 Evolution Path</p>
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {AVATAR_STAGES.map((s, i) => {
+            const isActive = ag.level >= s.minLv && (i === AVATAR_STAGES.length - 1 || ag.level < AVATAR_STAGES[i + 1].minLv)
+            const isDone   = i < AVATAR_STAGES.length - 1 && ag.level >= AVATAR_STAGES[i + 1].minLv
+            return (
+              <div key={s.title} className="flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl text-center min-w-[56px]"
+                style={{
+                  background: isDone ? 'linear-gradient(135deg,#1e1b4b,#6d28d9)' : isActive ? 'linear-gradient(135deg,#3730a3,#6d28d9)' : '#f1f5f9',
+                  border: isActive ? '2.5px solid #6d28d9' : '2px solid transparent',
+                }}>
+                <span className="text-2xl">{s.emoji}</span>
+                <span className="text-[8px] font-black" style={{ color: isDone || isActive ? '#fff' : '#64748b' }}>LV {s.minLv}</span>
+                <span className="text-[7px]" style={{ color: isDone || isActive ? 'rgba(255,255,255,0.7)' : '#94a3b8' }}>{s.title.split(' ')[0]}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Goals List */}
+      <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(160deg,#0d0a2e,#1e1b4b,#312e81)' }}>
+        <p className="text-base font-black text-white mb-1">🎯 Level-Up Goals</p>
+        <p className="text-xs text-white/50 mb-4">Tap to toggle · Each goal earns XP</p>
+        <div className="space-y-2">
+          {ag.goals.map(g => (
+            <div key={g.id} onClick={() => toggleGoal(g.id)}
+              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+              style={{ background: g.done ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.05)' }}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black transition-all
+                ${g.done ? 'bg-emerald-400 text-white' : 'border-2 border-white/30 text-white/30'}`}>
+                {g.done ? '✓' : ''}
+              </div>
+              <span className="text-xl flex-shrink-0">{g.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold" style={{ color: g.done ? 'rgba(255,255,255,0.45)' : '#fff', textDecoration: g.done ? 'line-through' : 'none' }}>
+                  {g.label}
+                </p>
+                <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Earn +{g.xp} XP</p>
+              </div>
+              {g.done && <span className="text-xs font-black text-emerald-400 flex-shrink-0">+{g.xp} ✓</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-violet-50 border border-violet-200 rounded-2xl p-3 text-xs text-violet-700 font-medium">
+        🌟 Your avatar evolves as you hit real health goals. Keep logging daily!
+      </div>
     </div>
   )
 }

@@ -243,6 +243,13 @@ const addOpdPatient = async (req, res, next) => {
       complaint,
       tokenNo,
       status,
+      weight,
+      bloodPressure,
+      temperature,
+      generalAppearance,
+      paymentMode,
+      opdFee,
+      followUpDate,
     } = req.body;
     if (!name) return error(res, "Patient name required", 400);
     // Normalize OPD status: frontend sends 'in-progress', Prisma enum uses 'in_progress'
@@ -265,6 +272,13 @@ const addOpdPatient = async (req, res, next) => {
         complaint,
         tokenNo: tokenNo ? parseInt(tokenNo) : null,
         status: normalizeOpdStatus(status),
+        weight: weight || null,
+        bloodPressure: bloodPressure || null,
+        temperature: temperature || null,
+        generalAppearance: generalAppearance || null,
+        paymentMode: paymentMode || null,
+        opdFee: opdFee ? parseFloat(opdFee) : null,
+        followUpDate: followUpDate || null,
       },
       include: { doctor: true },
     });
@@ -315,6 +329,21 @@ const updateOpdPatient = async (req, res, next) => {
           ? null
           : parseInt(body.tokenNo);
     }
+
+    if (body.opdFee !== undefined) {
+      body.opdFee =
+        body.opdFee === "" || body.opdFee === null
+          ? null
+          : parseFloat(body.opdFee);
+    }
+
+    // Normalize string fields — empty string → null for optional fields
+    const optionalStrings = ["weight", "bloodPressure", "temperature", "generalAppearance", "paymentMode", "followUpDate", "complaint", "diagnosis", "prescription", "followUp", "phone", "gender"];
+    optionalStrings.forEach((key) => {
+      if (body[key] !== undefined && body[key] === "") {
+        body[key] = null;
+      }
+    });
 
     // ❌ Protected fields remove
     delete body.id;
@@ -687,6 +716,90 @@ const getPatients = async (req, res, next) => {
   }
 };
 
+// ─── Consent-gated Patient Records ────────────────────────────────────────────
+const getPatientRecords = async (req, res, next) => {
+  try {
+    const hospitalId = getHospitalId(req);
+    const { patientId } = req.params;
+
+    // Check approved consent from this hospital
+    const consent = await prisma.consentRequest.findFirst({
+      where: { patientId, hospitalId, role: 'hospital', status: 'approved' },
+    });
+    if (!consent) {
+      return res.status(403).json({ success: false, message: 'Patient has not granted consent for record access' });
+    }
+
+    const records = await prisma.medicalRecord.findMany({
+      where: { patientId },
+      orderBy: { date: 'desc' },
+    });
+    return success(res, records);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Request Consent from Patient ─────────────────────────────────────────────
+const requestPatientConsent = async (req, res, next) => {
+  try {
+    const hospitalId = getHospitalId(req);
+    const { patientId, purpose } = req.body;
+
+    // Check if patient exists
+    const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    // Check if there's already a pending/approved consent from this hospital
+    const existing = await prisma.consentRequest.findFirst({
+      where: { patientId, hospitalId, role: 'hospital', status: { in: ['pending', 'approved'] } },
+    });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: existing.status === 'approved' ? 'Consent already granted' : 'A pending request already exists',
+      });
+    }
+
+    const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId } });
+
+    const consent = await prisma.consentRequest.create({
+      data: {
+        patientId,
+        hospitalId,
+        requestedBy: req.user.id,
+        role: 'hospital',
+        hospName: hospital?.name || 'Hospital',
+        purpose: purpose || 'Medical record access for treatment and care',
+        status: 'pending',
+      },
+    });
+
+    return success(res, consent, 'Consent request sent to patient', 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Get Consent Requests sent by this hospital ───────────────────────────────
+const getConsentRequests = async (req, res, next) => {
+  try {
+    const hospitalId = getHospitalId(req);
+    const consents = await prisma.consentRequest.findMany({
+      where: { hospitalId, role: 'hospital' },
+      include: {
+        patient: {
+          include: { user: { select: { name: true, email: true, phone: true } } },
+        },
+      },
+      orderBy: { requestedAt: 'desc' },
+    });
+    return success(res, consents);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAppointments,
   updateAppointment,
@@ -712,4 +825,7 @@ module.exports = {
   getNotifications,
   markNotificationRead,
   getPatients,
+  getPatientRecords,
+  requestPatientConsent,
+  getConsentRequests,
 };

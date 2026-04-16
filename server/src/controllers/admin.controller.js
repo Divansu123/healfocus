@@ -140,6 +140,7 @@ const getOverview = async (req, res, next) => {
       admissions,
       serviceRequests,
       signupRequests,
+      doctors,
     ] = await Promise.all([
       prisma.hospital.count(),
       prisma.patient.count(),
@@ -147,15 +148,102 @@ const getOverview = async (req, res, next) => {
       prisma.admission.count(),
       prisma.serviceRequest.count({ where: { status: "pending" } }),
       prisma.hospitalSignupRequest.count({ where: { status: "pending" } }),
+      prisma.doctor.count(),
     ]);
 
+    // ── Appointment status breakdown ──────────────────────────────────────────
+    const apptStatusGroups = await prisma.appointment.groupBy({
+      by: ["status"],
+      _count: { status: true },
+    });
+    const apptByStatus = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+    apptStatusGroups.forEach((g) => {
+      apptByStatus[g.status] = g._count.status;
+    });
+
+    // ── Patient gender breakdown ──────────────────────────────────────────────
+    const genderGroups = await prisma.patient.groupBy({
+      by: ["gender"],
+      _count: { gender: true },
+    });
+    const patientByGender = { Male: 0, Female: 0, Other: 0 };
+    genderGroups.forEach((g) => {
+      const key = g.gender || "Other";
+      patientByGender[key] = (patientByGender[key] || 0) + g._count.gender;
+    });
+
+    // ── Monthly appointments (last 6 months) ─────────────────────────────────
+    const now = new Date();
+    const monthlyData = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      const label = d.toLocaleString("default", { month: "short" });
+      const count = await prisma.appointment.count({
+        where: { createdAt: { gte: start, lt: end } },
+      });
+      monthlyData.push({ month: label, count });
+    }
+
+    // ── Appointments per hospital ─────────────────────────────────────────────
+    const hospitalList = await prisma.hospital.findMany({
+      select: { id: true, name: true },
+    });
+    const apptsByHospital = await prisma.appointment.groupBy({
+      by: ["hospitalId"],
+      _count: { hospitalId: true },
+    });
+    const hospApptMap = {};
+    apptsByHospital.forEach((g) => {
+      hospApptMap[g.hospitalId] = g._count.hospitalId;
+    });
+    const appointmentsPerHospital = hospitalList.map((h) => ({
+      id: h.id,
+      name: h.name,
+      count: hospApptMap[h.id] || 0,
+    }));
+
+    // ── Popular specialties ───────────────────────────────────────────────────
+    const specialtyAppts = await prisma.appointment.groupBy({
+      by: ["doctorId"],
+      _count: { doctorId: true },
+    });
+    const doctorSpecMap = await prisma.doctor.findMany({
+      select: { id: true, speciality: true },
+    });
+    const specCount = {};
+    specialtyAppts.forEach((g) => {
+      const doc = doctorSpecMap.find((d) => d.id === g.doctorId);
+      if (doc) {
+        const spec = doc.speciality || "General";
+        specCount[spec] = (specCount[spec] || 0) + g._count.doctorId;
+      }
+    });
+    const popularSpecialties = Object.entries(specCount)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+
+    // ── Pending alerts ────────────────────────────────────────────────────────
+    const pendingAdmissions = await prisma.admission.count({ where: { status: "pending" } });
+
     return success(res, {
+      // Basic counts
       hospitals,
       patients,
       appointments,
       admissions,
+      doctors,
       pendingServiceRequests: serviceRequests,
       pendingSignups: signupRequests,
+      // Analytics
+      apptByStatus,
+      patientByGender,
+      monthlyAppointments: monthlyData,
+      appointmentsPerHospital,
+      popularSpecialties,
+      pendingAdmissions,
     });
   } catch (err) {
     next(err);

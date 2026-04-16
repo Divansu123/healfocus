@@ -157,7 +157,10 @@ export default function AdminRecords() {
           <div>
             <p className="text-xs font-bold text-gray-500 mb-3">📄 Medical Records ({records.length})</p>
             <div className="space-y-3">
-              {records.map(r => (
+              {records.map(r => {
+                const attachList = r.attachments ? r.attachments.split(',').filter(Boolean) : []
+                const SERVER_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '')
+                return (
                 <div key={r.id} className="bg-white border border-primary-100 rounded-2xl p-4 shadow-card">
                   <div className="flex items-start gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${REC_TYPE_BG[r.type] || 'bg-gray-50'}`}>
@@ -175,10 +178,46 @@ export default function AdminRecords() {
                           ))}
                         </div>
                       )}
+                      {/* ── Attachments ── */}
+                      {attachList.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">📎 Attachments ({attachList.length})</p>
+                          <div className="flex flex-wrap gap-2">
+                            {attachList.map((filename, i) => {
+                              const ext = filename.split('.').pop().toLowerCase()
+                              const isPdf = ext === 'pdf'
+                              const fileUrl = `${SERVER_BASE}/uploads/${filename}`
+                              return (
+                                <div key={i} className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-xl px-2.5 py-1.5">
+                                  <span className="text-sm">{isPdf ? '📄' : '🖼️'}</span>
+                                  <span className="text-[10px] font-bold text-indigo-700 max-w-[80px] truncate">
+                                    {isPdf ? `PDF ${i + 1}` : `Image ${i + 1}`}
+                                  </span>
+                                  <div className="flex gap-1 ml-1">
+                                    {/* View */}
+                                    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 rounded-lg px-1.5 py-0.5 transition-colors"
+                                      title="View">
+                                      👁️
+                                    </a>
+                                    {/* Download */}
+                                    <a href={fileUrl} download={filename}
+                                      className="text-[10px] font-bold text-green-600 hover:text-green-800 bg-white border border-green-200 rounded-lg px-1.5 py-0.5 transition-colors"
+                                      title="Download">
+                                      ⬇️
+                                    </a>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

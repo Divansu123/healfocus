@@ -77,4 +77,16 @@ router.put('/discharge/:id', ctrl.updateDischargeSummary)
 router.get('/notifications', ctrl.getNotifications)
 router.patch('/notifications/:id/read', ctrl.markNotificationRead)
 
+// ─── Consent & Patient Records (consent-gated) ────────────────────────────────
+router.get('/consent', ctrl.getConsentRequests)
+router.post(
+  '/consent/request',
+  [
+    body('patientId').notEmpty().withMessage('patientId required'),
+  ],
+  validate,
+  ctrl.requestPatientConsent
+)
+router.get('/patients/:patientId/records', ctrl.getPatientRecords)
+
 module.exports = router

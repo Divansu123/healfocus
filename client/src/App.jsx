@@ -19,6 +19,7 @@ import DoctorLayout from '@/pages/doctor/DoctorLayout'
 import DoctorAppointments from '@/pages/doctor/DoctorAppointments'
 import DoctorOPD from '@/pages/doctor/DoctorOPD'
 import DoctorPatients from '@/pages/doctor/DoctorPatients'
+import DoctorRecords from '@/pages/doctor/DoctorRecords'
 import DoctorDischarge from '@/pages/doctor/DoctorDischarge'
 import DoctorBills from '@/pages/doctor/DoctorBills'
 import DoctorDoctors from '@/pages/doctor/DoctorDoctors'
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="appointments" element={<DoctorAppointments />} />
         <Route path="opd" element={<DoctorOPD />} />
         <Route path="patients" element={<DoctorPatients />} />
+        <Route path="records" element={<DoctorRecords />} />
         <Route path="discharge" element={<DoctorDischarge />} />
         <Route path="bills" element={<DoctorBills />} />
         <Route path="doctors" element={<DoctorDoctors />} />

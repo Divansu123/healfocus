@@ -264,17 +264,18 @@ model Appointment {
 }
 
 model MedicalRecord {
-  id         String   @id @default(uuid())
-  patientId  String
-  hospitalId Int?
-  type       String
-  title      String
-  date       String
-  doctor     String?
-  summary    String?  @db.Text
-  tags       String?
-  addedBy    String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid())
+  patientId   String
+  hospitalId  Int?
+  type        String
+  title       String
+  date        String
+  doctor      String?
+  summary     String?  @db.Text
+  tags        String?
+  addedBy     String?
+  attachments String?  @db.Text  // comma-separated relative file paths
+  createdAt   DateTime @default(now())
 
   patient  Patient   @relation(fields: [patientId], references: [id])
   hospital Hospital? @relation(fields: [hospitalId], references: [id])
@@ -296,6 +297,7 @@ model InsuranceCard {
   tpaName     String?
   emergencyNo String?
   status      String   @default("active")
+  attachments String?  @db.Text  // comma-separated relative file paths
   createdAt   DateTime @default(now())
 
   patient Patient          @relation(fields: [patientId], references: [id])
@@ -317,6 +319,7 @@ model InsuranceClaim {
   status         ClaimStatus @default(processing)
   remarks        String?     @db.Text
   updatedBy      String?
+  attachments    String?     @db.Text  // comma-separated relative file paths
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -517,6 +520,14 @@ model OpdPatient {
   followUp     String?
   status       OpdStatus @default(waiting)
   tokenNo      Int?
+  // New fields
+  weight            String?   // e.g. "70 kg"
+  bloodPressure     String?   // e.g. "120/80 mmHg"
+  temperature       String?   // e.g. "98.6 °F"
+  generalAppearance String?   // e.g. "Well-nourished"
+  paymentMode  String?   // e.g. "Cash" / "UPI" / "Credit" / "Others"
+  opdFee       Float?
+  followUpDate String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

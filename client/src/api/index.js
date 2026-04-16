@@ -1,9 +1,6 @@
 import axios from "axios";
 import { useAuthStore } from "@/store/authStore";
 
-// ─── API Base URL ─────────────────────────────────────────────────────────────
-// Local:  set VITE_API_URL=http://localhost:5000/api  in client/.env
-// Render: set VITE_API_URL=https://healfocus-api.onrender.com/api  in Render Dashboard
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
@@ -116,6 +113,16 @@ export const patientApi = {
   getMedicalRecords: () => api.get("/patient/records"),
   addMedicalRecord: (payload) => api.post("/patient/records", payload),
   deleteMedicalRecord: (id) => api.delete(`/patient/records/${id}`),
+  uploadRecordFiles: (id, formData) =>
+    api.post(`/patient/records/${id}/upload`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+
+  // Skin Scan Upload
+  uploadSkinScan: (formData) =>
+    api.post("/patient/skin-scan/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
 
   // Blood Sugar
   getBloodSugar: () => api.get("/patient/health/blood-sugar"),
@@ -152,10 +159,19 @@ export const patientApi = {
   // Insurance
   getInsurance: () => api.get("/patient/insurance"),
   addInsurance: (payload) => api.post("/patient/insurance", payload),
+  uploadInsuranceFiles: (id, formData) =>
+    api.post(`/patient/insurance/${id}/upload`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
 
   // Insurance Claims
   getInsuranceClaims: () => api.get("/patient/insurance/claims"),
-  addInsuranceClaim: (payload) => api.post("/patient/insurance/claims", payload),
+  addInsuranceClaim: (payload) =>
+    api.post("/patient/insurance/claims", payload),
+  uploadClaimFiles: (id, formData) =>
+    api.post(`/patient/insurance/claims/${id}/upload`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
 
   // SOS Contacts
   getSosContacts: () => api.get("/patient/sos-contacts"),
@@ -226,6 +242,13 @@ export const hospitalApi = {
   // Notifications
   getNotifications: () => api.get("/hospital/notifications"),
   markNotificationRead: (id) => api.patch(`/hospital/notifications/${id}/read`),
+
+  // Consent & Patient Records (consent-gated)
+  getConsentRequests: () => api.get("/hospital/consent"),
+  requestPatientConsent: (payload) =>
+    api.post("/hospital/consent/request", payload),
+  getPatientRecords: (patientId) =>
+    api.get(`/hospital/patients/${patientId}/records`),
 };
 
 // ─────────────────────────────────────────
@@ -276,9 +299,11 @@ export const adminApi = {
   markNotificationRead: (id) => api.patch(`/admin/notifications/${id}/read`),
 
   // Patient Records (consent-gated)
-  getPatientRecords: (patientId) => api.get(`/admin/patients/${patientId}/records`),
+  getPatientRecords: (patientId) =>
+    api.get(`/admin/patients/${patientId}/records`),
 
   // Consent Management
   getAllConsentRequests: () => api.get("/admin/consent"),
-  requestPatientConsent: (payload) => api.post("/admin/consent/request", payload),
+  requestPatientConsent: (payload) =>
+    api.post("/admin/consent/request", payload),
 };

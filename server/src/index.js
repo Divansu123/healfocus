@@ -6,6 +6,7 @@ const compression = require("compression");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 
 const logger = require("./config/logger");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
@@ -49,8 +50,7 @@ app.use(cookieParser());
 // const globalLimiter = rateLimit({
 //   windowMs: 15 * 60 * 1000,
 //   max: 100,
-//   standardHeaders: true,
-//   legacyHeaders: false,
+//   standardHeaders: true,//   legacyHeaders: false,
 //   message: { success: false, message: 'Too many requests, please try again later.' },
 // })
 // app.use(globalLimiter)
@@ -83,6 +83,10 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// ─── Static Uploads ───────────────────────────────────────────────────────────
+// Serve uploaded files (medical record attachments, skin scans, etc.)
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
