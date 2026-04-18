@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware'
 
 // ─────────────────────────────────────────────
 //  Auth Store — persists to localStorage
-//  Replace with real JWT flow when backend ready
 // ─────────────────────────────────────────────
 export const useAuthStore = create(
   persist(
@@ -19,6 +18,15 @@ export const useAuthStore = create(
 
       logout: () => {
         localStorage.removeItem('hf_token')
+        // Notification store bhi reset karo
+        // Lazy import to avoid circular dependency
+        import('@/store/notificationStore').then(({ useNotificationStore }) => {
+          useNotificationStore.getState().reset()
+        })
+        // Socket bhi disconnect karo
+        import('@/lib/useSocket').then(({ disconnectSocket }) => {
+          disconnectSocket()
+        })
         set({ user: null, token: null, isAuthenticated: false })
       },
 

@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma')
 const { success, error } = require('../utils/response')
+const { notifyAdmin } = require('../config/socket')
 
 // ─── Specialties ──────────────────────────────────────────────────────────────
 const getSpecialties = async (req, res, next) => {
@@ -120,8 +121,8 @@ const registerHospital = async (req, res, next) => {
       data: { name, city, address, phone, email, beds: beds ? parseInt(beds) : null, type, contact, note },
     })
 
-    // Notify admin
-    await prisma.notification.create({
+    // Notify admin (DB + real-time socket)
+    const notif = await prisma.notification.create({
       data: {
         isAdmin: true,
         type: 'signup',
@@ -130,6 +131,7 @@ const registerHospital = async (req, res, next) => {
         msg: `${name}, ${city} has applied to join Heal Focus.`,
       },
     })
+    notifyAdmin(notif)
 
     return success(res, req2, 'Signup request submitted. Admin will review and contact you.', 201)
   } catch (err) { next(err) }

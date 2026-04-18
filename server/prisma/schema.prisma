@@ -100,6 +100,8 @@ enum NotificationType {
   claim
   admission
   signup
+  service
+  patient_registered
 }
 
 enum BloodSugarType {
@@ -127,6 +129,7 @@ model User {
   updatedAt DateTime  @updatedAt
   patient   Patient?
   hospital  Hospital? @relation("HospitalAdmin")
+  notifications Notification[]
 
   @@map("users")
 }
@@ -576,6 +579,7 @@ model ServiceRequest {
 
 model Notification {
   id         String           @id @default(uuid())
+  userId     String?
   patientId  String?
   hospitalId Int?
   isAdmin    Boolean          @default(false)
@@ -586,6 +590,7 @@ model Notification {
   read       Boolean          @default(false)
   createdAt  DateTime         @default(now())
 
+  user     User?     @relation(fields: [userId], references: [id])
   patient  Patient?  @relation(fields: [patientId], references: [id])
   hospital Hospital? @relation(fields: [hospitalId], references: [id])
 

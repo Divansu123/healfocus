@@ -1,27 +1,31 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useNotificationStore } from '@/store/notificationStore'
 import { Sidebar } from '@/components/ui'
 import { Menu, LogOut, Bell } from 'lucide-react'
 import { authApi, adminApi } from '@/api'
-import AdminNotifications from './AdminNotifications'
+import { useSocket } from '@/lib/useSocket'
+import toast from 'react-hot-toast'
 
 const NAV = [
   { section: 'Overview' },
-  { id: 'overview',   icon: '📊', label: 'Dashboard' },
+  { id: 'overview',       icon: '📊', label: 'Dashboard' },
   { section: 'Network' },
-  { id: 'hospitals',  icon: '🏥', label: 'Hospitals' },
-  { id: 'onboarding', icon: '✅', label: 'Onboarding' },
+  { id: 'hospitals',      icon: '🏥', label: 'Hospitals' },
+  { id: 'onboarding',     icon: '✅', label: 'Onboarding' },
   { section: 'Patients' },
-  { id: 'patients',   icon: '👥', label: 'Patients' },
-  { id: 'records',    icon: '📁', label: 'Patient Records' },
-  { id: 'admissions', icon: '🛏️', label: 'Admissions' },
+  { id: 'patients',       icon: '👥', label: 'Patients' },
+  { id: 'records',        icon: '📁', label: 'Patient Records' },
+  { id: 'admissions',     icon: '🛏️', label: 'Admissions' },
   { section: 'Operations' },
-  { id: 'promos',     icon: '🎁', label: 'Promotions' },
-  { id: 'requests',   icon: '🔧', label: 'Service Requests' },
-  { id: 'team',       icon: '👨‍💼', label: 'Team' },
+  { id: 'promos',         icon: '🎁', label: 'Promotions' },
+  { id: 'requests',       icon: '🔧', label: 'Service Requests' },
+  { id: 'team',           icon: '👨‍💼', label: 'Team' },
   { section: 'AI Tools' },
-  { id: 'billcheck',  icon: '🔍', label: 'AI Bill Analyzer' },
+  { id: 'billcheck',      icon: '🔍', label: 'AI Bill Analyzer' },
+  { section: 'More' },
+  { id: 'notifications',  icon: '🔔', label: 'Notifications' },
 ]
 
 export default function AdminLayout() {
@@ -29,17 +33,23 @@ export default function AdminLayout() {
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [showNotifs, setShowNotifs] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
 
+  // Notification store se live unread count lo
+  const { unreadCount, setNotifications, setLoading } = useNotificationStore()
+
+  // Initial load: notifications fetch karo aur store mein set karo
   useEffect(() => {
+    setLoading(true)
     adminApi.getNotifications()
-      .then(res => {
-        const data = res.data?.data || []
-        setUnreadCount(data.filter(n => !n.read).length)
-      })
+      .then(res => setNotifications(res.data?.data || []))
       .catch(() => {})
-  }, [showNotifs])
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Socket: naya notification aaye toh toast dikhao (store auto-update hoga)
+  useSocket((notif) => {
+    toast(notif.title, { icon: '🔔' })
+  })
 
   const activeTab = location.pathname.split('/admin/')[1] || 'overview'
 
@@ -56,7 +66,7 @@ export default function AdminLayout() {
         onClose={() => setSidebarOpen(false)}
         navItems={NAV}
         activeTab={activeTab}
-        onTabChange={(id) => navigate(`/admin/${id}`)}
+        onTabChange={(id) => { navigate(`/admin/${id}`); setSidebarOpen(false) }}
         role="Super Admin"
         onLogout={handleLogout}
       />
@@ -67,7 +77,7 @@ export default function AdminLayout() {
             {NAV.find(n => n.id === activeTab)?.icon} {NAV.find(n => n.id === activeTab)?.label || 'Admin Panel'}
           </h1>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowNotifs(true)} className="relative p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all">
+            <button onClick={() => navigate('/admin/notifications')} className="relative p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all">
               <Bell size={18} />
               {unreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
@@ -86,7 +96,6 @@ export default function AdminLayout() {
           </div>
         </main>
       </div>
-      {showNotifs && <AdminNotifications onClose={() => setShowNotifs(false)} />}
     </div>
   )
 }

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useNotificationStore } from '@/store/notificationStore'
 import { Sidebar } from '@/components/ui'
 import { Menu, LogOut, Bell } from 'lucide-react'
 import { authApi, hospitalApi } from '@/api'
-import DoctorNotifications from './DoctorNotifications'
+import { useSocket } from '@/lib/useSocket'
+import toast from 'react-hot-toast'
 
 const NAV = [
   { section: 'Appointments' },
@@ -19,6 +21,8 @@ const NAV = [
   { id: 'doctors', icon: '👨‍⚕️', label: 'Doctors' },
   { id: 'promos', icon: '🎁', label: 'Promotions' },
   { id: 'requests', icon: '🔧', label: 'Service Requests' },
+  { section: 'More' },
+  { id: 'notifications', icon: '🔔', label: 'Notifications' },
 ]
 
 export default function DoctorLayout() {
@@ -26,17 +30,23 @@ export default function DoctorLayout() {
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [showNotifs, setShowNotifs] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
 
+  // Notification store se live unread count lo
+  const { unreadCount, setNotifications, setLoading } = useNotificationStore()
+
+  // Initial load: notifications fetch karo aur store mein set karo
   useEffect(() => {
+    setLoading(true)
     hospitalApi.getNotifications()
-      .then(res => {
-        const data = res.data?.data || []
-        setUnreadCount(data.filter(n => !n.read).length)
-      })
+      .then(res => setNotifications(res.data?.data || []))
       .catch(() => {})
-  }, [showNotifs])
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Socket: naya notification aaye toh toast dikhao (store auto-update hoga)
+  useSocket((notif) => {
+    toast(notif.title, { icon: '🔔' })
+  })
 
   const activeTab = location.pathname.split('/hospital/')[1] || 'appointments'
 
@@ -53,7 +63,7 @@ export default function DoctorLayout() {
         onClose={() => setSidebarOpen(false)}
         navItems={NAV}
         activeTab={activeTab}
-        onTabChange={(id) => navigate(`/hospital/${id}`)}
+        onTabChange={(id) => { navigate(`/hospital/${id}`); setSidebarOpen(false) }}
         role={user?.name || 'Hospital Staff'}
         onLogout={handleLogout}
       />
@@ -64,7 +74,7 @@ export default function DoctorLayout() {
             {NAV.find(n => n.id === activeTab)?.icon} {NAV.find(n => n.id === activeTab)?.label || 'Hospital Portal'}
           </h1>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowNotifs(true)} className="relative p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all">
+            <button onClick={() => navigate('/hospital/notifications')} className="relative p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all">
               <Bell size={18} />
               {unreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
@@ -83,7 +93,6 @@ export default function DoctorLayout() {
           </div>
         </main>
       </div>
-      {showNotifs && <DoctorNotifications onClose={() => setShowNotifs(false)} />}
     </div>
   )
 }

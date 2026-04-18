@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useNotificationStore } from '@/store/notificationStore'
 import { Sidebar } from '@/components/ui'
 import { Menu, Bell, LogOut } from 'lucide-react'
 import { authApi, patientApi } from '@/api'
+import { useSocket } from '@/lib/useSocket'
+import toast from 'react-hot-toast'
 
 const BOTTOM_TABS = [
   { id: '/patient',              label: 'Home',    icon: '🏠' },
@@ -34,16 +37,23 @@ export default function PatientLayout() {
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
 
+  // Notification store se live unread count lo
+  const { unreadCount, setNotifications, setLoading } = useNotificationStore()
+
+  // Initial load: notifications fetch karo aur store mein set karo
   useEffect(() => {
+    setLoading(true)
     patientApi.getNotifications()
-      .then(res => {
-        const data = res.data?.data || []
-        setUnreadCount(data.filter(n => !n.read).length)
-      })
+      .then(res => setNotifications(res.data?.data || []))
       .catch(() => {})
-  }, [location.pathname])
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Socket: naya notification aaye toh toast dikhao (store auto-update hoga)
+  useSocket((notif) => {
+    toast(notif.title, { icon: '🔔' })
+  })
 
   const activePath = location.pathname
   const activeBottom = BOTTOM_TABS.find(t => t.id === activePath)?.id || '/patient'

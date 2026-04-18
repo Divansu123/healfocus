@@ -1,8 +1,9 @@
 const bcrypt = require("bcryptjs");
 const prisma = require("../config/prisma");
-const { generateTokens, verifyRefreshToken } = require("../utils/jwt");
+const { generateTokens, verifyRefreshToken, verifyAccessToken } = require("../utils/jwt");
 const { success, error } = require("../utils/response");
 const logger = require("../config/logger");
+const { notifyAdmin } = require("../config/socket");
 
 // ─── Register (Patient only via public signup) ────────────────────────────────
 const register = async (req, res, next) => {
@@ -26,6 +27,23 @@ const register = async (req, res, next) => {
       },
       include: { patient: true },
     });
+
+    // ─── Notify admin about new patient registration ──────────────────────
+    try {
+      const notif = await prisma.notification.create({
+        data: {
+          isAdmin: true,
+          type: "patient_registered",
+          icon: "👤",
+          title: "New Patient Registered",
+          msg: `${name} has registered as a new patient on Heal Focus.`,
+        },
+      });
+      notifyAdmin(notif);
+    } catch (notifErr) {
+      // Notification failure should not block registration
+      logger.warn("Failed to send admin notification for new patient", { err: notifErr.message });
+    }
 
     logger.info("New patient registered", { userId: user.id });
     return success(
@@ -54,6 +72,25 @@ const login = async (req, res, next) => {
     // Role mismatch check
     if (user.role !== role) {
       return error(res, "Wrong email or password", 401);
+    }
+
+    // ── Hospital status check — inactive/suspended hospitals login nahi kar sakte ──
+    if (user.role === "hospital" && user.hospital) {
+      const hospitalStatus = user.hospital.status;
+      if (hospitalStatus === "inactive") {
+        return error(
+          res,
+          "Your hospital account has been deactivated. Please contact the administrator.",
+          403
+        );
+      }
+      if (hospitalStatus === "suspended") {
+        return error(
+          res,
+          "Your hospital account has been suspended. Please contact the administrator.",
+          403
+        );
+      }
     }
 
     if (password !== user.password) {
@@ -102,7 +139,47 @@ const login = async (req, res, next) => {
 };
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
-const logout = (req, res) => {
+const logout = async (req, res) => {
+  // Mark all current notifications as read (session clear)
+  // Any new notifications arriving while logged out will remain unread
+  // and will be shown prominently on next login
+  const authHeader = req.headers?.authorization;
+  if (authHeader) {
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const decoded = verifyAccessToken(token);
+      const userId = decoded?.id;
+      const role = decoded?.role;
+
+      if (userId && role) {
+        if (role === "patient") {
+          const patient = await prisma.patient.findFirst({ where: { userId } });
+          if (patient) {
+            await prisma.notification.updateMany({
+              where: { patientId: patient.id, read: false },
+              data: { read: true },
+            });
+          }
+        } else if (role === "hospital") {
+          const hospital = await prisma.hospital.findFirst({ where: { adminId: userId } });
+          if (hospital) {
+            await prisma.notification.updateMany({
+              where: { hospitalId: hospital.id, read: false },
+              data: { read: true },
+            });
+          }
+        } else if (role === "admin") {
+          await prisma.notification.updateMany({
+            where: { isAdmin: true, read: false },
+            data: { read: true },
+          });
+        }
+      }
+    } catch (_) {
+      // Token expired or invalid — skip silently
+    }
+  }
+
   res.clearCookie("hf_refresh", { httpOnly: true, sameSite: "strict" });
   return success(res, null, "Logged out successfully");
 };
@@ -120,6 +197,14 @@ const refresh = async (req, res, next) => {
       include: { patient: true, hospital: true },
     });
     if (!user) return error(res, "User not found", 401);
+
+    // ── Hospital status check — suspended/inactive ka token refresh block karo ──
+    if (user.role === "hospital" && user.hospital) {
+      const hospitalStatus = user.hospital.status;
+      if (hospitalStatus === "inactive" || hospitalStatus === "suspended") {
+        return error(res, "Hospital account is not active. Please contact the administrator.", 403);
+      }
+    }
 
     const tokenPayload = {
       id: user.id,

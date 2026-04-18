@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
 const { success, error } = require("../utils/response");
+const { notifyHospital } = require("../config/socket");
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 const getProfile = async (req, res, next) => {
@@ -61,6 +62,7 @@ const getAppointments = async (req, res, next) => {
 const bookAppointment = async (req, res, next) => {
   try {
     const { doctorId, hospitalId, date, time, reason } = req.body;
+
     const appt = await prisma.appointment.create({
       data: {
         patientId: req.user.patientId,
@@ -71,7 +73,26 @@ const bookAppointment = async (req, res, next) => {
         reason,
         status: "pending",
       },
+      include: {
+        patient: { include: { user: { select: { name: true } } } },
+        doctor: { select: { name: true } },
+      },
     });
+
+    // ─── Notify hospital in real-time ─────────────────────────────────────────
+    const patientName = appt.patient?.user?.name || "A patient";
+    const doctorName = appt.doctor?.name || "Doctor";
+    const notif = await prisma.notification.create({
+      data: {
+        hospitalId: parseInt(hospitalId),
+        type: "appt",
+        icon: "calendar",
+        title: "New Appointment Request",
+        msg: `${patientName} has booked an appointment with Dr. ${doctorName} on ${date} at ${time}. Reason: ${reason || "N/A"}`,
+      },
+    });
+    notifyHospital(parseInt(hospitalId), notif);
+
     return success(res, appt, "Appointment booked", 201);
   } catch (err) {
     next(err);

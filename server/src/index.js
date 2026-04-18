@@ -1,4 +1,5 @@
 require("dotenv").config();
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -10,6 +11,7 @@ const path = require("path");
 
 const logger = require("./config/logger");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
+const { initSocket } = require("./config/socket");
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 const authRoutes = require("./routes/auth.routes");
@@ -102,7 +104,12 @@ app.use(errorHandler);
 // ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, "0.0.0.0", () => {
+const httpServer = http.createServer(app);
+
+// Initialize Socket.io for real-time notifications
+initSocket(httpServer);
+
+httpServer.listen(PORT, "0.0.0.0", () => {
   logger.info(
     `✅ HealFocus API running on port ${PORT} [${process.env.NODE_ENV || "development"}]`,
   );

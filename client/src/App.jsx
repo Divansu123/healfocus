@@ -25,6 +25,7 @@ import DoctorBills from '@/pages/doctor/DoctorBills'
 import DoctorDoctors from '@/pages/doctor/DoctorDoctors'
 import DoctorPromos from '@/pages/doctor/DoctorPromos'
 import DoctorServiceRequests from '@/pages/doctor/DoctorServiceRequests'
+import DoctorNotifications from '@/pages/doctor/DoctorNotifications'
 
 import AdminLayout from '@/pages/admin/AdminLayout'
 import AdminOverview from '@/pages/admin/AdminOverview'
@@ -37,6 +38,7 @@ import AdminOnboarding from '@/pages/admin/AdminOnboarding'
 import AdminTeam from '@/pages/admin/AdminTeam'
 import AdminBillCheck from '@/pages/admin/AdminBillCheck'
 import AdminRecords from '@/pages/admin/AdminRecords'
+import AdminNotifications from '@/pages/admin/AdminNotifications'
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -76,6 +78,7 @@ export default function App() {
         <Route path="doctors" element={<DoctorDoctors />} />
         <Route path="promos" element={<DoctorPromos />} />
         <Route path="requests" element={<DoctorServiceRequests />} />
+        <Route path="notifications" element={<DoctorNotifications />} />
       </Route>
 
       {/* Admin Routes */}
@@ -91,6 +94,7 @@ export default function App() {
         <Route path="team" element={<AdminTeam />} />
         <Route path="billcheck" element={<AdminBillCheck />} />
         <Route path="records" element={<AdminRecords />} />
+        <Route path="notifications" element={<AdminNotifications />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

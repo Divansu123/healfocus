@@ -2,10 +2,57 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TopBar } from '@/components/ui'
 import { today } from '@/lib/utils'
-import { Plus, Trash2, Phone } from 'lucide-react'
+import { Plus, Trash2, Phone, X, BellRing } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { patientApi } from '@/api'
 import { useAuthStore } from '@/store/authStore'
+import { scheduleReminderAlarms, clearAllAlarms } from '@/lib/soundUtils'
+
+// ── GLOBAL ALARM MODAL ─────────────────────────────────────────────────────────
+// Yeh component poori app mein ek hi baar render hoga
+// healfocus:alarm event sun ke modal dikhata hai
+function AlarmModal() {
+  const [alarm, setAlarm] = useState(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      setAlarm({ reminder: e.detail.reminder, dismiss: e.detail.dismiss })
+    }
+    window.addEventListener('healfocus:alarm', handler)
+    return () => window.removeEventListener('healfocus:alarm', handler)
+  }, [])
+
+  if (!alarm) return null
+
+  const handleDismiss = () => {
+    alarm.dismiss()
+    setAlarm(null)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full mx-4 text-center animate-bounce-once">
+        {/* Pulsing bell */}
+        <div className="flex justify-center mb-4">
+          <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center animate-pulse">
+            <BellRing size={40} className="text-primary-600" />
+          </div>
+        </div>
+        <p className="text-xs font-bold text-primary-500 uppercase tracking-widest mb-1">⏰ Reminder</p>
+        <h2 className="text-2xl font-black text-gray-900 mb-2">{alarm.reminder.title}</h2>
+        <p className="text-sm text-gray-500 mb-6">
+          {alarm.reminder.icon || '💊'} &nbsp;
+          {alarm.reminder.time} · {alarm.reminder.freq || 'Daily'}
+        </p>
+        <button
+          onClick={handleDismiss}
+          className="w-full py-3 rounded-2xl bg-primary-600 text-white font-black text-base active:scale-95 transition-transform">
+          ✓ Dismiss
+        </button>
+      </div>
+    </div>
+  )
+}
 
 const TABS = [
   { v: 'reminders', l: '⏰ Reminders'  },
@@ -23,6 +70,8 @@ export default function PatientWellness() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      {/* Global alarm modal — poori page ke upar */}
+      <AlarmModal />
       <TopBar hideOnDesktop title="Wellness & Tools" onBack={() => navigate('/patient')} />
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 lg:pb-4 lg:px-0 lg:pt-0">
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
@@ -65,11 +114,20 @@ function RemindersTab() {
 
   const load = () => {
     patientApi.getReminders()
-      .then(res => setReminders(res.data?.data || []))
+      .then(res => {
+        const data = res.data?.data || []
+        setReminders(data)
+        // ⏰ Reminders load hone ke baad alarms schedule karo
+        scheduleReminderAlarms(data)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    // Component unmount pe alarms clear karo
+    return () => clearAllAlarms()
+  }, [])
 
   const add = async () => {
     if (!form.title) { toast.error('Title required'); return }
@@ -78,7 +136,7 @@ function RemindersTab() {
       toast.success('Reminder added')
       setAdding(false)
       setForm({ type:'med', icon:'💊', title:'', time:'08:00', freq:'Daily' })
-      load()
+      load()  // load ke andar scheduleReminderAlarms() call hoga
     } catch { toast.error('Failed') }
   }
 

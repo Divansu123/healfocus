@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
 const { success, error } = require("../utils/response");
+const { notifyHospital, forceLogoutHospital } = require("../config/socket");
 
 // ─── Create Admin Account ─────────────────────────────────────────────────────
 const createAdmin = async (req, res, next) => {
@@ -267,11 +268,58 @@ const updateHospitalStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const h = await prisma.hospital.update({
+
+    const hospital = await prisma.hospital.update({
       where: { id: parseInt(id) },
       data: { status },
+      include: { admin: { select: { id: true } } },
     });
-    return success(res, h, "Hospital status updated");
+
+    // ── Agar hospital inactive ya suspended hua to force logout karo ─────────
+    if (status === "inactive" || status === "suspended") {
+      // Real-time force logout — socket event bhejo hospital room ko
+      forceLogoutHospital(
+        hospital.id,
+        status === "suspended"
+          ? "Your hospital account has been suspended by the administrator. Please contact support."
+          : "Your hospital account has been deactivated by the administrator."
+      );
+
+      // Notification bhi store karo
+      try {
+        const notif = await prisma.notification.create({
+          data: {
+            hospitalId: hospital.id,
+            type: "account_status",
+            icon: status === "suspended" ? "🚫" : "⛔",
+            title: status === "suspended" ? "Account Suspended" : "Account Deactivated",
+            msg:
+              status === "suspended"
+                ? "Your hospital account has been suspended by the administrator. Please contact support."
+                : "Your hospital account has been deactivated by the administrator.",
+          },
+        });
+        notifyHospital(hospital.id, notif);
+      } catch (_) {}
+    }
+
+    // Agar wapas active kiya to notification bhejo
+    if (status === "active") {
+      try {
+        const notif = await prisma.notification.create({
+          data: {
+            hospitalId: hospital.id,
+            type: "account_status",
+            icon: "✅",
+            title: "Account Activated",
+            msg: "Your hospital account has been activated. You can now log in to the portal.",
+          },
+        });
+        notifyHospital(hospital.id, notif);
+      } catch (_) {}
+    }
+
+    return success(res, hospital, "Hospital status updated");
   } catch (err) {
     next(err);
   }
@@ -358,6 +406,20 @@ const approveSignupRequest = async (req, res, next) => {
         timeout: 20000,
       },
     );
+
+    // ─── Notify the newly approved hospital in real-time ─────────────────
+    try {
+      const notif = await prisma.notification.create({
+        data: {
+          hospitalId: result.hospital.id,
+          type: "signup",
+          icon: "✅",
+          title: "Welcome to Heal Focus!",
+          msg: `Your hospital "${result.hospital.name}" has been approved. You can now log in and manage your services.`,
+        },
+      });
+      notifyHospital(result.hospital.id, notif);
+    } catch (_) {}
 
     return success(res, result, "Hospital approved and account created");
   } catch (err) {
@@ -543,7 +605,26 @@ const updateServiceRequest = async (req, res, next) => {
     const updated = await prisma.serviceRequest.update({
       where: { id },
       data: { status, adminNotes },
+      include: { hospital: { select: { id: true, name: true } } },
     });
+
+    // ─── Notify hospital about status update ─────────────────────────────
+    if (status && updated.hospital) {
+      try {
+        const statusLabel = status === "resolved" ? "✅ Resolved" : status === "in_progress" ? "🔄 In Progress" : status === "rejected" ? "❌ Rejected" : status;
+        const notif = await prisma.notification.create({
+          data: {
+            hospitalId: updated.hospital.id,
+            type: "service",
+            icon: "🔧",
+            title: "Service Request Updated",
+            msg: `Your service request "${updated.title}" has been marked as ${statusLabel}.${adminNotes ? ` Note: ${adminNotes}` : ""}`,
+          },
+        });
+        notifyHospital(updated.hospital.id, notif);
+      } catch (_) {}
+    }
+
     return success(res, updated, "Service request updated");
   } catch (err) {
     next(err);

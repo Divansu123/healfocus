@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const { success, error } = require("../utils/response");
+const { notifyPatient, notifyAdmin } = require("../config/socket");
 
 const getHospitalId = (req) => req.user.hospitalId;
 
@@ -70,12 +71,45 @@ const updateAppointment = async (req, res, next) => {
     const { status } = req.body;
     const appt = await prisma.appointment.findFirst({
       where: { id, hospitalId: getHospitalId(req) },
+      include: {
+        doctor: { select: { name: true } },
+        hospital: { select: { name: true } },
+      },
     });
     if (!appt) return error(res, "Appointment not found", 404);
     const updated = await prisma.appointment.update({
       where: { id },
       data: { status },
     });
+
+    // ─── Notify patient in real-time ──────────────────────────────────────────
+    const doctorName = appt.doctor?.name || "Doctor";
+    const hospitalName = appt.hospital?.name || "Hospital";
+    let title = "";
+    let msg = "";
+
+    if (status === "confirmed") {
+      title = "Appointment Confirmed ✅";
+      msg = `Your appointment with Dr. ${doctorName} on ${appt.date} at ${appt.time} at ${hospitalName} has been confirmed.`;
+    } else if (status === "cancelled" || status === "rejected") {
+      title = "Appointment Cancelled ❌";
+      msg = `Your appointment with Dr. ${doctorName} on ${appt.date} at ${appt.time} at ${hospitalName} has been cancelled. Please reschedule.`;
+    } else {
+      title = "Appointment Updated";
+      msg = `Your appointment with Dr. ${doctorName} on ${appt.date} at ${appt.time} has been updated to: ${status}.`;
+    }
+
+    const notif = await prisma.notification.create({
+      data: {
+        patientId: appt.patientId,
+        type: "appt",
+        icon: "calendar",
+        title,
+        msg,
+      },
+    });
+    notifyPatient(appt.patientId, notif);
+
     return success(res, updated, "Appointment updated");
   } catch (err) {
     next(err);
@@ -490,6 +524,21 @@ const addServiceRequest = async (req, res, next) => {
         priority,
       },
     });
+
+    // ─── Notify admin in real-time ────────────────────────────────────────
+    try {
+      const notif = await prisma.notification.create({
+        data: {
+          isAdmin: true,
+          type: "service",
+          icon: "🔧",
+          title: "New Service Request",
+          msg: `${hospital?.name || "A hospital"} has submitted a service request: "${title}" (${category}, ${priority} priority).`,
+        },
+      });
+      notifyAdmin(notif);
+    } catch (_) {}
+
     return success(res, req2, "Service request submitted", 201);
   } catch (err) {
     next(err);
